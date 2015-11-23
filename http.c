@@ -1,24 +1,54 @@
 #include "http.h"
 
-struct http_request request(char *buf)
+#include <arpa/inet.h>
+#include <sys/file.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <bsd/stdlib.h>
+#include <netinet/in.h>
+
+#include <ctype.h>
+#include <errno.h>
+#include <netdb.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#define HEADER_FIELD	1
+
+int process_header(char *Header_Field, struct http_request *request_info);
+char *set_request(char *request_val);
+int check_num(char *check_val);
+int check_tm(struct tm *http_data);
+int get_datenum(char *date_list[], char *sub);
+int set_asctime(struct tm *http_date, char *request_val);
+int set_method(char *method, struct http_request *request_info);
+int set_rfc1123(struct tm *http_date, char *request_val);
+int set_rfc850(struct tm *http_date, char *request_val);
+int to_num(char *header);
+time_t set_date(char *request_val, struct http_request *request_info);
+
+static char *wkday[] = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", NULL };
+static char *weekday[] = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", NULL };
+static char *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", NULL };
+
+int q_err;
+
+int request(char *buf, struct http_request *request_info)
 {
 	char *request = buf;
 	char *Header_Field;
 	char *method;
 	int ret;
-	struct http_request request_info;
-	request_info.err = 0;
+	q_err = 0;
 	/* process the first line of http request */
 	method = strtok_r(NULL, "\r\n", &request);
-	strncpy(request_info.first_line, method, strlen(method) + 1);
-	request_info.first_line[strlen(method)] = '\0';
-	ret = set_method(method, &request_info);
+// 	strncpy(request_info->first_line, method, strlen(method) + 1);
+// 	request_info->first_line[strlen(method)] = '\0';
+	ret = set_method(method, request_info);
 	if (ret)
-	{
-		//perror("set method error");
-		request_info.err = 1;
-		return request_info;
-	}
+		return q_err;
 	/* process the following header fields */
 	while(1){
 		Header_Field = strtok_r(NULL, "\r\n", &request);
@@ -26,13 +56,11 @@ struct http_request request(char *buf)
 			/* end of http request */
 			break;
 		}
-		ret = process_header(Header_Field, &request_info);
-		if (ret > 0){
-			request_info.err = ret;
-			return request_info;
-		}
+		ret = process_header(Header_Field, request_info);
+		if (ret > 0)
+			return q_err;
 	}
-	return request_info;
+	return q_err;
 }
 
 /* set http method to http_request, return 1 if error */
@@ -57,43 +85,31 @@ int set_method(char *method, struct http_request *request_info)
 		request_info->http_version = set_request(http_version);
 		return 0;
 	}
-	//perror("set method error ");
+	q_err = 1;
 	return 1;
 }
 
 /* process http request header field 
  * split header and value
- * return 1 if error 
+ * return 2 if error 
  */
 int process_header(char *Header_Field, struct http_request *request_info)
 {
 	char *header;
 	char *header_value;
 	header = strtok_r(Header_Field, ":", &header_value);
-	if (header == NULL&&header_value == NULL)
-	{
-		perror("strtok_r header");
+	if (header == NULL&&header_value == NULL){
+		q_err = 2;
 		return 2;
 	}
 	switch (to_num(header))
 	{
-	case 0:		/*Date*/
-		request_info->HTTP_date = set_date(header_value, request_info);
-		break;
-	case 1:		/*If-Modified-Since*/
+	case 0:		/*If-Modified-Since*/
 		request_info->if_modified_since = set_date(header_value, request_info);
-		break;
-	case 2:		/*Last-Modified*/
-		request_info->last_modified = set_date(header_value, request_info);
-		break;
-	case 3:		/*Location*/
-		request_info->absoluteURI = set_request(header_value);
-		break;
-	case 4:		/*Server*/
-		request_info->server = set_request(header_value);
-		break;
-	case 5:		/*User-Agent*/
-		request_info->user_agent = set_request(header_value);
+		if (request_info->if_modified_since < 0)
+			request_info->if_modified_flag = 0;
+		else
+			request_info->if_modified_flag = 1;
 		break;
 	default:
 		break;
@@ -106,10 +122,8 @@ char *set_request(char *request_val)
 {
 	char *request_type;
 	request_type = (char *)malloc((strlen(request_val) + 1)*sizeof(char));
-	if (request_type == NULL){
-		//perror("set_request malloc failed");
+	if (request_type == NULL)
 		return NULL;
-	}
 	strncpy(request_type, request_val, strlen(request_val) + 1);
 	request_type[strlen(request_val)] = '\0';
 	return request_type;
@@ -141,14 +155,10 @@ int set_rfc850(struct tm *http_date, char *request_val)
 	second = strtok_r(NULL, " ", &rest);
 	if (week&&day&&month&&year&&hour&&minute&&second)
 	{
-		if ((n_week = get_datenum(weekday, week)) == -1){
-			perror("get date week");
-			return 1;
-		}
-		if ((n_month = get_datenum(months, month)) == -1){
-			perror("get date num month");
-			return 1;
-		}
+		if ((n_week = get_datenum(weekday, week)) == -1)
+			return 3;
+		if ((n_month = get_datenum(months, month)) == -1)
+			return 3;
 		if (check_num(day) && check_num(year) && check_num(hour) && check_num(minute) && check_num(second))
 		{
 			http_date->tm_hour = atoi(hour);
@@ -162,14 +172,12 @@ int set_rfc850(struct tm *http_date, char *request_val)
 			http_date->tm_mday = atoi(day);
 			http_date->tm_wday = n_week;
 			http_date->tm_isdst = 0;
-			if (check_tm(http_date)){
-				perror("check tm");
-				return 1;
-			}
+			if (check_tm(http_date))
+				return 3;
 			return 0;
 		}
 	}
-	return 1;
+	return 3;
 }
 
 /* set tm from rfc1123 format date, return 1 if error */
@@ -196,9 +204,9 @@ int set_rfc1123(struct tm *http_date, char *request_val)
 	if (week&&day&&month&&year&&hour&&minute&&second)
 	{
 		if ((n_week = get_datenum(wkday, week)) == -1)
-			return 1;
+			return 4;
 		if ((n_month = get_datenum(months, month)) == -1)
-			return 1;
+			return 4;
 		if (check_num(day) && check_num(year) && check_num(hour) && check_num(minute) && check_num(second))
 		{
 			http_date->tm_hour = atoi(hour);
@@ -209,15 +217,12 @@ int set_rfc1123(struct tm *http_date, char *request_val)
 			http_date->tm_mday = atoi(day);
 			http_date->tm_wday = n_week;
 			http_date->tm_isdst = 0;
-			if (check_tm(http_date)){
-				perror("check tm");
-				return 1;
-			}
+			if (check_tm(http_date))
+				return 4;
 			return 0;
 		}
 	}
-	perror("strtok_r");
-	return 1;
+	return 4;
 }
 
 /* set tm from asctime format date, return 1 if error */
@@ -245,9 +250,9 @@ int set_asctime(struct tm *http_date, char *request_val)
 	if (week&&day&&month&&year&&hour&&minute&&second)
 	{
 		if ((n_week = get_datenum(wkday, week)) == -1)
-			return 1;
+			return 5;
 		if ((n_month = get_datenum(months, month)) == -1)
-			return 1;
+			return 5;
 		if (check_num(day) && check_num(year) && check_num(hour) && check_num(minute) && check_num(second))
 		{
 			http_date->tm_hour = atoi(hour);
@@ -258,15 +263,12 @@ int set_asctime(struct tm *http_date, char *request_val)
 			http_date->tm_mday = atoi(day);
 			http_date->tm_wday = n_week;
 			http_date->tm_isdst = 0;
-			if (check_tm(http_date)){
-				perror("check tm");
-				return 1;
-			}
+			if (check_tm(http_date))
+				return 5;
 			return 0;
 		}
 	}
-	perror("strtok_r");
-	return 1;
+	return 5;
 }
 
 /*
@@ -279,48 +281,36 @@ Monday, 02-Jun-82 23:59:59 GMT
 asctime-date   = wkday SP date3 SP time SP 4DIGIT
 Mon Jun  2 23:59:59 1982
 */
-struct tm set_date(char *request_val,struct http_request *request_info)
+time_t set_date(char *request_val,struct http_request *request_info)
 {
 	struct tm http_date;
+	time_t t;
 	if (strstr(request_val, "GMT")){
 		if (strstr(request_val, "-")){
 			//rfc850 
 			//Date:Monday, 02-Jun-02 23:54:07 GMT
-			if (set_rfc850(&http_date, request_val)){
-				perror("set rfc850 error");
-				request_info->err = 3;
-			}
+			q_err = set_rfc850(&http_date, request_val);
 		}
 		else{
 			//rfc1123
 			//Date:Mon, 02 Jun 1982 23:59:59 GMT
-			if (set_rfc1123(&http_date, request_val)){
-				perror("set rfc1123 error");
-				request_info->err = 3;
-			}
+			q_err = set_rfc1123(&http_date, request_val);
 		}
 	}
 	else{
 		//asctime
 		//Date:Mon Jun  2 23:12:26 2010
-		if (set_asctime(&http_date, request_val)){
-			perror("set rfc1123 error");
-			request_info->err = 3;
-		}
+		q_err = set_asctime(&http_date, request_val);
 	}
-	return http_date;
+	t = mktime(&http_date);
+	return t;
 }
 
 /* transform header to category number, return -1 if error */
 int to_num(char *header)
 {
 	char *hf_list[] = {
-		"Date",
-		"If-Modified-Since",
-		"Last-Modified",
-		"Location",
-		"Server",
-		"User-Agent"
+		"If-Modified-Since"
 	};
 	int i = 0;
 	for (i = 0; i < HEADER_FIELD; i++)
@@ -368,39 +358,10 @@ int check_tm(struct tm *http_data)
 	return 0;
 }
 
-/* fd: file descriptor of logging file (-l)
- *     file descriptor of stdout 1 (-d)
- *     -1 if not apply logging
- * return the number of bytes written on success
- * return -1 if error
- */
-int logging(int fd, struct http_request *request_info)
+void clean_request(struct http_request *request_info)
 {
-	char *output_buf;
-	int buf_size;
-	int ret, i;
-	//off_t offset;
-	buf_size = strlen(request_info->client_ip) + strlen(request_info->first_line) + strlen(request_info->state_code) + 128;
-	output_buf = (char *)malloc(buf_size*(sizeof(char)));
-	ret = snprintf(output_buf, buf_size, "%s %s \"%s\" %s %d\n",
-		request_info->client_ip,
-		asctime(&request_info->receive_time),
-		request_info->first_line,
-		request_info->state_code,
-		request_info->content_length);
-	if (output_buf == NULL)
-		return -1;
-	if (fd){
-		ret = flock(fd, LOCK_EX | LOCK_NB);
-		for (i = 0; ret < 0&&i<WAITLOCK; i++)
-		{
-			// printf("waiting for lock\n");
-			sleep(1);
-		}
-		lseek(fd, 0, SEEK_END);
-		ret = write(fd, output_buf, strlen(output_buf));
-		return ret;
-	}
-	// do not apply logging anything
-	return 0;
+	free(request_info->request_URL);
+	request_info->request_URL = NULL;
+	free(request_info->http_version);
+	request_info->http_version = NULL;
 }
