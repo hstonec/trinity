@@ -16,23 +16,25 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "jstring.h"
 #include "macros.h"
 #include "sws.h"
 #include "net.h"
+#include "http.h"
 
 #define DEFAULT_BACKLOG 10
 #define DEFAULT_BUFFSIZE 512
 #define HTTP_REQUEST_MAX_LENGTH 8192
 
 static void do_http(struct swsopt *, int, struct sockaddr *);
-//static void read_http_header(int cfd, struct http_request *phr);
+static void read_http_header(int, struct http_request *);
 static void call_cgi(int, JSTRING *);
 static void get_client_ip(char *, struct sockaddr *);
 static void send_file(int, JSTRING *);
 static void send_dirindex(int, JSTRING *);
-//static void send_err_and_exit(int, int);
+static void send_err_and_exit(int, int);
 
 static BOOL is_cgi_call(JSTRING *);
 static BOOL replace_userdir(JSTRING *);
@@ -208,16 +210,16 @@ do_http(struct swsopt *so, int cfd, struct sockaddr *client)
 {
 	/* ipv6 length is enough for both type */
 	char client_ip[INET6_ADDRSTRLEN];
-	//struct http_request hr;
+	struct http_request hr;
 	JSTRING *url;
 	
 	get_client_ip(client_ip, client);
 	
-	//read_http_header(cfd, &hr);
+	read_http_header(cfd, &hr);
 	
 	/* verify http version */
 	
-	url = jstr_create("/"/* hr.request_URL */);
+	url = jstr_create(hr.request_URL);
 	
 	/* If -c is set and URL starts with /cgi-bin */
 	if (so->opt['c'] == TRUE && is_cgi_call(url) == TRUE)
@@ -256,7 +258,7 @@ do_http(struct swsopt *so, int cfd, struct sockaddr *client)
 	close(cfd);
 }
 
-/*
+
 static void
 read_http_header(int cfd, struct http_request *phr)
 {
@@ -277,34 +279,31 @@ read_http_header(int cfd, struct http_request *phr)
 		for (i = 0; i < DEFAULT_BUFFSIZE; i++, request_len++) {
 			request_head[request_len] = buf[i];
 			
-			// verify it is the end of request
+			/* verify if it's the end of request */
 			offset = buf[i] == end_flag[offset] ? offset + 1 : 0;
 			if (offset == 4) {
 				end_of_request = TRUE;
 				break;
 			}
 			
-			// verify length
-			if (request_len == HTTP_REQUEST_MAX_LENGTH - 1) {
-				send_http_error_response(cfd, 400);
-				_exit(EXIT_FAILURE);
-			}
+			/* verify length */
+			if (request_len == HTTP_REQUEST_MAX_LENGTH - 1)
+				send_err_and_exit(cfd, Bad_Request);
+				
 		}
 		if (end_of_request == TRUE)
 			break;
 	}
-	if (count == -1) {
-		send_http_error_response(cfd, 500);
-		_exit(EXIT_FAILURE);
-	}
-	if (end_of_request == FLASE) {
-		send_http_error_response(cfd, 400);
-		_exit(EXIT_FAILURE);
-	}
+	if (count == -1)
+		send_err_and_exit(cfd, Internal_Server_Error);
+	
+	if (end_of_request == FLASE)
+		send_err_and_exit(cfd, Bad_Request);
+	
 	
 	// call http request function,
 }
-*/
+
 
 static void
 call_cgi(int cfd, JSTRING *path)
@@ -358,14 +357,37 @@ send_dirindex(int cfd, JSTRING *path)
 	
 }
 
-/*
+
 static void
 send_err_and_exit(int cfd, int err_code)
 {
 	// get response message according to error code
+	ssize_t count, total;
+	char *buf;
+	
+	if (err_code == Bad_Request)
+		jstr_insert(path, 0, "400 ");
+	else if (err_code == Not_Found)
+		jstr_insert(path, 0, "404 ");
+	else if (err_code == Internal_Server_Error)
+		jstr_insert(path, 0, "500 ");
+	else
+		jstr_insert(path, 0, "Unknown ");
+	
+	jstr_insert(path, 0, "err num: ");
+	buf = jstr_cstr(path);
+	total = jstr_length(path);
+	
+	count = 0;
+	while ((count = write(cfd, buf, total)) > 0) {
+		total -= count;
+		buf += count;
+	}
+	
 	close(cfd);
+	_exit(EXIT_FAILURE);
 }
-*/
+
 
 static void
 get_client_ip(char *client_ip, struct sockaddr *client) 
