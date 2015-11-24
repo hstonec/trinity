@@ -13,6 +13,7 @@ size_t jstr_length(JSTRING *);
 char jstr_charat(JSTRING *, size_t);
 JSTRING *jstr_substr(JSTRING *, size_t, size_t);
 void jstr_trunc(JSTRING *, size_t, size_t);
+void jstr_insert(JSTRING *, size_t, char *);
 void jstr_concat(JSTRING *, char *);
 void jstr_append(JSTRING *, char);
 int jstr_equals(JSTRING *, JSTRING *);
