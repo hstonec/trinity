@@ -11,6 +11,7 @@
 
 #include <bsd/stdlib.h>
 
+#include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +24,7 @@
 #include "sws.h"
 #include "net.h"
 #include "http.h"
+#include "arraylist.h"
 
 #define DEFAULT_BACKLOG 10
 #define DEFAULT_BUFFSIZE 512
@@ -33,14 +35,16 @@ static void read_http_header(int, struct http_request *);
 static void call_cgi(int, JSTRING *);
 static void get_client_ip(char *, struct sockaddr *);
 static void send_file(int, JSTRING *);
-static void send_dirindex(int, JSTRING *);
+static void send_dirindex(int, JSTRING *, char *uri);
 static void send_err_and_exit(int, int);
 
 static BOOL is_cgi_call(JSTRING *);
 static BOOL replace_userdir(JSTRING *);
 static BOOL is_dir(char *);
 static BOOL contains_indexfile(JSTRING *);
-void println(int, char *);
+static void write_socket(int, char *, size_t);
+static int lexicographical_compare(const void *, const void *);
+
 
 /*
  * This function creates a server socket and binds
@@ -193,7 +197,7 @@ start_server(struct swsopt *so)
 					_exit(EXIT_SUCCESS);
 				}	
 			}
-		} else
+		} else // should be modified to use child process
 			do_http(so, cfd, client);
 		
 		
@@ -219,6 +223,7 @@ do_http(struct swsopt *so, int cfd, struct sockaddr *client)
 	
 	/* verify http version */
 	
+	/* should verify path like ../../../.. ? */
 	url = jstr_create(hr.request_URL);
 	
 	/* If -c is set and URL starts with /cgi-bin */
@@ -246,14 +251,12 @@ do_http(struct swsopt *so, int cfd, struct sockaddr *client)
 			jstr_concat(url, "index.html");
 			send_file(cfd, url);
 		} else if (is_dir(jstr_cstr(url)) == TRUE)
-			send_dirindex(cfd, url);
+			send_dirindex(cfd, url, hr.request_URL);
 		else
 			send_file(cfd, url);
 	}
 	
 	/* If If-Modified-Since is set, detect */
-	
-	println(cfd, client_ip);
 	
 	close(cfd);
 }
@@ -275,8 +278,8 @@ read_http_header(int cfd, struct http_request *phr)
 	end_flag = "\r\n\r\n";
 	end_of_request = FALSE;
 	
-	while ((count = read(sfd, buf, DEFAULT_BUFFSIZE)) > 0) {
-		for (i = 0; i < DEFAULT_BUFFSIZE; i++, request_len++) {
+	while ((count = read(cfd, buf, DEFAULT_BUFFSIZE)) > 0) {
+		for (i = 0; i < count; i++, request_len++) {
 			request_head[request_len] = buf[i];
 			
 			/* verify if it's the end of request */
@@ -297,11 +300,13 @@ read_http_header(int cfd, struct http_request *phr)
 	if (count == -1)
 		send_err_and_exit(cfd, Internal_Server_Error);
 	
-	if (end_of_request == FLASE)
+	if (end_of_request == FALSE)
 		send_err_and_exit(cfd, Bad_Request);
 	
+	/* request() return 0 means success */
+	if (request(request_head, phr) != 0)
+		send_err_and_exit(cfd, Bad_Request);
 	
-	// call http request function,
 }
 
 
@@ -311,7 +316,7 @@ call_cgi(int cfd, JSTRING *path)
 	ssize_t count, total;
 	char *buf;
 	
-	jstr_insert(path, 0, "should call cgi at file: ");
+	jstr_insert(path, 0, "call cgi at: ");
 	buf = jstr_cstr(path);
 	total = jstr_length(path);
 	
@@ -340,21 +345,117 @@ send_file(int cfd, JSTRING *path)
 }
 
 static void
-send_dirindex(int cfd, JSTRING *path)
+send_dirindex(int cfd, JSTRING *path, char *uri)
 {
-	ssize_t count, total;
-	char *buf;
+	DIR *dp;
+	struct dirent *dirp;
+	size_t i, bodylen;
+	ARRAYLIST *list;
+	JSTRING *filename;
+	char *tag_before_title;
+	char *tag_before_h1;
+	char *tag_before_li;
+	char *tag_left_li;
+	char *tag_middle_li;
+	char *tag_right_li;
+	char *tag_after_li;
 	
-	jstr_insert(path, 0, "should send dir index: ");
-	buf = jstr_cstr(path);
-	total = jstr_length(path);
+	size_t tag_before_title_len;
+	size_t tag_before_h1_len;
+	size_t tag_before_li_len;
+	size_t tag_left_li_len;
+	size_t tag_middle_li_len;
+	size_t tag_right_li_len;
+	size_t tag_after_li_len;
 	
-	count = 0;
-	while ((count = write(cfd, buf, total)) > 0) {
-		total -= count;
-		buf += count;
+	size_t uri_len;
+	
+	
+	list = arrlist_create();
+	
+	/* 
+	 * Denotes the http response body length to this 
+	 * request.
+	 */
+	bodylen = 0;
+	
+	if ((dp = opendir(jstr_cstr(path))) == NULL )
+		send_err_and_exit(cfd, Internal_Server_Error);
+	
+	while ((dirp = readdir(dp)) != NULL ) {
+		/*  Files starting with a '.' are ignored. */
+		if (dirp->d_name[0] == '.')
+			continue;
+		
+		filename = jstr_create(dirp->d_name);
+		bodylen += jstr_length(filename);
+		arrlist_add(list, filename);
 	}
+	(void)closedir(dp);
 	
+	/* sort the list in alphanumeric order */
+	arrlist_sort(list, &lexicographical_compare);
+	
+	tag_before_title = \
+		"<!DOCTYPE html>\n" \
+		"<html>\n" \
+		"\t<head><title>Index of ";
+	tag_before_h1 = \
+		"</title></head>\n" \
+		"\t<body>\n" \
+		"\t\t<h1>Index of ";
+	tag_before_li = \
+		"</h1>\n" \
+		"\t\t<ul>\n";
+	tag_left_li = "\t\t\t<li><a href=\"";
+	tag_middle_li = "\"> ";
+	tag_right_li = "</a></li>\n";
+	tag_after_li = "\t\t</ul>\n\t</body>\n</html>";
+	
+	tag_before_title_len = strlen(tag_before_title);
+	tag_before_h1_len = strlen(tag_before_h1);
+	tag_before_li_len = strlen(tag_before_li);
+	tag_left_li_len = strlen(tag_left_li);
+	tag_middle_li_len = strlen(tag_middle_li);
+	tag_right_li_len = strlen(tag_right_li);
+	tag_after_li_len = strlen(tag_after_li);
+	
+	uri_len = strlen(uri);
+	
+	/* each uri will be wrote twice */
+	bodylen *= 2;
+	
+	bodylen += uri_len * 2;
+	
+	bodylen += tag_before_title_len +
+			   tag_before_h1_len +
+			   tag_before_li_len +
+			   tag_left_li_len * arrlist_size(list) +
+			   tag_middle_li_len * arrlist_size(list) +
+			   tag_right_li_len * arrlist_size(list) +
+			   tag_after_li_len;
+	
+	// send response head here
+	
+	write_socket(cfd, tag_before_title, tag_before_title_len);
+	write_socket(cfd, uri, uri_len);
+	write_socket(cfd, tag_before_h1, tag_before_h1_len);
+	write_socket(cfd, uri, uri_len);
+	write_socket(cfd, tag_before_li, tag_before_li_len);
+	for (i = 0; i < arrlist_size(list); i++) {
+		filename = (JSTRING *)arrlist_get(list, i);
+		
+		write_socket(cfd, tag_left_li, tag_left_li_len);
+		write_socket(cfd, jstr_cstr(filename), jstr_length(filename));
+		write_socket(cfd, tag_middle_li, tag_middle_li_len);
+		write_socket(cfd, jstr_cstr(filename), jstr_length(filename));
+		write_socket(cfd, tag_right_li, tag_right_li_len);
+		
+		jstr_free(filename);
+	}
+	write_socket(cfd, tag_after_li, tag_after_li_len);
+	
+	arrlist_free(list);
 }
 
 
@@ -362,8 +463,11 @@ static void
 send_err_and_exit(int cfd, int err_code)
 {
 	// get response message according to error code
+	JSTRING *path;
 	ssize_t count, total;
 	char *buf;
+	
+	path = jstr_create("");
 	
 	if (err_code == Bad_Request)
 		jstr_insert(path, 0, "400 ");
@@ -491,33 +595,27 @@ contains_indexfile(JSTRING *path)
 	return flag;
 }
 
-/*
- * This function reads one line of text from passed file descriptor
- * and prints out on standard output with the passed ip address.
- */
-void
-println(int sfd, char *ip_addr)
+static void
+write_socket(int sfd, char *buf, size_t len)
 {
-	ssize_t i, count;
-	char buf[DEFAULT_BUFFSIZE];
-	BOOL eol; /* end of line flag */
-	
-	eol = FALSE;
-	(void)fprintf(stdout, "%s: ", ip_addr);
-	while ((count = read(sfd, buf, DEFAULT_BUFFSIZE)) > 0) {
-		for (i = 0; i < count; i++) {
-			(void)fprintf(stdout, "%c", buf[i]);
-			if (buf[i] == '\n') {
-				eol = TRUE;
-				break;
-			}
-		}
-		if (eol)
-			break;
+	ssize_t count;
+		
+	count = 0;
+	while ((count = write(sfd, buf, len)) > 0) {
+		len -= count;
+		buf += count;
 	}
+	if (count == -1)
+		send_err_and_exit(sfd, Internal_Server_Error);
+}
+
+static int 
+lexicographical_compare(const void *p1, const void *p2)
+{
+	JSTRING *fp1, *fp2; 
 	
-	if (count == -1) {
-		perror("socket read error");
-		exit(EXIT_FAILURE);
-	}
+	fp1 = *(JSTRING * const *)p1;
+	fp2 = *(JSTRING * const *)p2;
+	
+	return strcmp(jstr_cstr(fp1), jstr_cstr(fp2));
 }

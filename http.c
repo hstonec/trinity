@@ -1,5 +1,3 @@
-#include "http.h"
-
 #include <arpa/inet.h>
 #include <sys/file.h>
 #include <sys/types.h>
@@ -15,6 +13,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+
+#include "http.h"
 
 #define HEADER_FIELD	1
 
