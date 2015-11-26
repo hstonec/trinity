@@ -7,7 +7,7 @@ sws: main.c net.o http_request.o jstring.o arraylist.o
 net.o: net.c net.h sws.h macros.h
 	$(CC) -Wall -g -c net.c
 
-http_request.o: http_request.c http_request.h
+http_request.o: http_request.c http.h
 	$(CC) -Wall -g -c http_request.c
 	
 jstring.o: jstring.c jstring.h
