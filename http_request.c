@@ -17,6 +17,7 @@
 #include "http.h"
 
 #define HEADER_FIELD	1
+#define LOGGING_BUF		4096
 
 int process_header(char *Header_Field, struct http_request *request_info);
 char *set_request(char *request_val);
@@ -38,7 +39,12 @@ static char *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"
 
 int q_err;
 
-int request(char *buf, struct http_request *request_info)
+/* This function processes http request header fields.
+ * This function will set values for http_request structure
+ * and set_logging structure to communicate with other functions
+ * This function will return 0 if succeed, larger than 0 if error.
+ */
+int request(char *buf, struct http_request *request_info, struct set_logging *logging_info)
 {
 	char *request = buf;
 	char *Header_Field;
@@ -47,8 +53,10 @@ int request(char *buf, struct http_request *request_info)
 	q_err = 0;
 	/* process the first line of http request */
 	method = strtok_r(NULL, "\r\n", &request);
-// 	strncpy(request_info->first_line, method, strlen(method) + 1);
-// 	request_info->first_line[strlen(method)] = '\0';
+	/* set logging information */
+	logging_info->first_line = set_request(method);
+	time(&logging_info->receive_time);
+
 	ret = set_method(method, request_info);
 	if (ret)
 		return q_err;
@@ -440,4 +448,51 @@ void clean_request(struct http_request *request_info)
 	request_info->request_URL = NULL;
 	free(request_info->http_version);
 	request_info->http_version = NULL;
+}
+
+/* Logging writes logging information to logging file.
+ * If there is an error, logging will return 0. 
+ * If succeed, logging will return the length written to 
+ * logging file.
+ */
+int logging(int fd, struct set_logging *logging_info)
+{
+	char output_buf[LOGGING_BUF];
+	int ret, len, total;
+	ret = 0;
+	if (logging_info->client_ip == NULL || 
+		logging_info->content_length < 0 || 
+		logging_info->first_line == NULL || 
+		logging_info->receive_time < 0 || 
+		logging_info->state_code < 0)
+		return -1;
+
+	len = snprintf(output_buf, LOGGING_BUF, "%s %s \"%s\" %d %d\n",
+		logging_info->client_ip,
+		asctime(gmtime(&logging_info->receive_time)),
+		logging_info->first_line,
+		logging_info->state_code,
+		logging_info->content_length);
+	total = len;
+	if (len){
+		while (len)
+		{
+			if (len>LOGGING_BUF)
+				ret = write(fd, output_buf, LOGGING_BUF);
+			else
+				ret = write(fd, output_buf, len);
+			len -= ret;
+		}
+		return total;
+	}
+	else
+		return 0;
+}
+
+void clean_logging(struct set_logging *logging_info)
+{
+	free(logging_info->client_ip);
+	logging_info->client_ip = NULL;
+	free(logging_info->first_line);
+	logging_info->first_line = NULL;
 }

@@ -38,6 +38,23 @@ struct http_request
 	time_t if_modified_since;
 };
 
-int request(char *buf, struct http_request *request_info);	/* deal with http request */
+struct set_logging
+{
+	char *first_line;	/* already set up in request */
+	char *client_ip;
+	int state_code;
+	int content_length;
+	time_t receive_time;/* already set up in request */
+};
+
+int request(char *buf, struct http_request *request_info, struct set_logging *logging_info);	/* deal with http request */
 void clean_request(struct http_request *request_info);
+
+/* logging will return the length function written
+ * return 0 if error 
+ * This function will check set_logging structure to 
+ * make sure there is no empty or illegal values.
+ */
+int logging(int fd, struct set_logging *logging_info);
+void clean_logging(struct set_logging *logging_info);
 #endif
