@@ -17,7 +17,7 @@
 #include "http.h"
 
 int
-response(struct http_response *response_info, char *resp_buf, int capacity, int *size, char *err_buf)
+response(struct http_response *response_info, char *resp_buf, int capacity, int *size)
 {
 	char buf[capacity];
 	char timestr[64];
@@ -46,8 +46,6 @@ response(struct http_response *response_info, char *resp_buf, int capacity, int 
 			get_content_type(response_info->file_path),
 			response_info->content_length);
 	} else {
-		sprintf(entity_html, "<html>%d %s</html>", response_info->http_status,
-			status_phrase(response_info->http_status));
 		sprintf(buf,
 			"HTTP/%s %d %s\r\n"
 			"Date: %s\r\n"
@@ -58,15 +56,7 @@ response(struct http_response *response_info, char *resp_buf, int capacity, int 
 			"1.0", response_info->http_status, status_phrase(response_info->http_status),
 			timestr,
 			lastmodstr,
-			/* content length is the length of html*/
-			(unsigned long)strlen(entity_html));
-		response_info->content_length = (unsigned long)strlen(entity_html);
-		for (int i = 0; i < strlen(entity_html); i ++) {
-			err_buf[i] = entity_html[i];
-		}
-		/* when error occurs, html msg will append to the response header as entity body */
-		strncat(buf, entity_html, strlen(entity_html));
-		strncat(buf, "\r\n", strlen("\r\n"));
+			response_info->content_length);
 	}
 	for (int i = 0; i < strlen(buf); i ++) {
 		/* copy buf */
