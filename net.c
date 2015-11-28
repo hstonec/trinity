@@ -11,8 +11,10 @@
 
 #include <bsd/stdlib.h>
 
+#include <fcntl.h>
 #include <dirent.h>
 #include <errno.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,31 +22,32 @@
 #include <time.h>
 
 #include "jstring.h"
+#include "arraylist.h"
 #include "macros.h"
+
 #include "sws.h"
 #include "net.h"
 #include "http.h"
-#include "arraylist.h"
+#include "cgi.h"
 
 #define DEFAULT_BACKLOG 10
 #define DEFAULT_BUFFSIZE 512
 #define HTTP_REQUEST_MAX_LENGTH 8192
 
-static void do_http(struct swsopt *, int, struct sockaddr *);
+static void do_http(struct swsopt *, int, struct sockaddr *,
+					struct sockaddr *, char *);
 static void read_http_header(int, struct http_request *);
-static void call_cgi(int, JSTRING *);
-static void get_client_ip(char *, struct sockaddr *);
-static void send_file(int, JSTRING *);
+static void get_ip(char *, struct sockaddr *);
+static void send_file(int, struct http_request *, JSTRING *);
 static void send_dirindex(int, JSTRING *, char *uri);
 static void send_err_and_exit(int, int);
 
-static BOOL is_cgi_call(JSTRING *);
 static BOOL replace_userdir(JSTRING *);
+static void separate_query(char *, JSTRING **, JSTRING **);
 static BOOL is_dir(char *);
 static BOOL contains_indexfile(JSTRING *);
 static void write_socket(int, char *, size_t);
 static int lexicographical_compare(const void *, const void *);
-
 
 /*
  * This function creates a server socket and binds
@@ -193,12 +196,16 @@ start_server(struct swsopt *so)
 				if (pid > 0) 
 					_exit(EXIT_SUCCESS);
 				else {
-					do_http(so, cfd, client);
+					do_http(so, cfd, client, server, server_port);
+					close(cfd);
 					_exit(EXIT_SUCCESS);
 				}	
 			}
-		} else // should be modified to use child process
-			do_http(so, cfd, client);
+		} else { // should be modified to use child process
+			do_http(so, cfd, client, server, server_port);
+			close(cfd);
+		}
+			
 		
 		
 	}
@@ -210,26 +217,50 @@ start_server(struct swsopt *so)
 }
 
 static void
-do_http(struct swsopt *so, int cfd, struct sockaddr *client)
+do_http(struct swsopt *so, int cfd, 
+		struct sockaddr *client,
+		struct sockaddr *server,
+		char *server_port)
 {
+	int cgi_result;
+	struct cgi_request cgi_req;
 	/* ipv6 length is enough for both type */
+	char server_ip[INET6_ADDRSTRLEN];
 	char client_ip[INET6_ADDRSTRLEN];
 	struct http_request hr;
-	JSTRING *url;
+	JSTRING *url, *query;
 	
-	get_client_ip(client_ip, client);
+	get_ip(server_ip, server);
+	get_ip(client_ip, client);
 	
 	read_http_header(cfd, &hr);
 	
 	/* verify http version */
 	
+	/* Check if the request method is not HEAD or GET */
+	if (hr.method_type != HEAD &&
+	    hr.method_type != GET)
+		send_err_and_exit(cfd, Not_Implemented);
+	
 	/* should verify path like ../../../.. ? */
-	url = jstr_create(hr.request_URL);
+	separate_query(hr.request_URL, &url, &query);
 	
 	/* If -c is set and URL starts with /cgi-bin */
-	if (so->opt['c'] == TRUE && is_cgi_call(url) == TRUE)
-		call_cgi(cfd, url);
-	else {
+	if (so->opt['c'] == TRUE && is_cgi_call(url) == TRUE) {
+		/* Initialize struct cgi_request */
+		cgi_req.cfd = cfd;
+		cgi_req.request_method = hr.method_type;
+		cgi_req.cgi_dir = so->cgi_dir;
+		cgi_req.server_ip = server_ip;
+		cgi_req.server_port = server_port;
+		cgi_req.client_ip = client_ip;
+		cgi_req.path = url;
+		cgi_req.query = query;
+		
+		cgi_result = call_cgi(&cgi_req);
+		if (cgi_result != 0)
+			send_err_and_exit(cfd, cgi_result);
+	} else {
 		/* 
 		 * If url doesn't start with /~<user> and is a 
 		 * relative path, it should be concatenated with
@@ -249,16 +280,16 @@ do_http(struct swsopt *so, int cfd, struct sockaddr *client)
 			if (jstr_charat(url, jstr_length(url) - 1) != '/')
 				jstr_append(url, '/');
 			jstr_concat(url, "index.html");
-			send_file(cfd, url);
+			send_file(cfd, &hr, url);
 		} else if (is_dir(jstr_cstr(url)) == TRUE)
 			send_dirindex(cfd, url, hr.request_URL);
 		else
-			send_file(cfd, url);
+			send_file(cfd, &hr, url);
 	}
 	
 	/* If If-Modified-Since is set, detect */
-	
-	close(cfd);
+	jstr_free(url);
+	jstr_free(query);
 }
 
 
@@ -309,39 +340,60 @@ read_http_header(int cfd, struct http_request *phr)
 	
 }
 
-
 static void
-call_cgi(int cfd, JSTRING *path)
+send_file(int cfd, struct http_request *hr, JSTRING *path)
 {
-	ssize_t count, total;
-	char *buf;
+	BOOL need_send;
+	struct stat stat_buf;
+	int fd;
+	ssize_t read_count, write_count;
+	size_t write_total;
+	char buf[DEFAULT_BUFFSIZE];
+	char *buf_head;
 	
-	jstr_insert(path, 0, "call cgi at: ");
-	buf = jstr_cstr(path);
-	total = jstr_length(path);
 	
-	count = 0;
-	while ((count = write(cfd, buf, total)) > 0) {
-		total -= count;
-		buf += count;
+	if (stat(jstr_cstr(path), &stat_buf) == -1) {
+		if (errno == ENOENT)
+			send_err_and_exit(cfd, Not_Found);
+		else
+			send_err_and_exit(cfd, Internal_Server_Error);
 	}
-}
-
-static void
-send_file(int cfd, JSTRING *path)
-{
-	ssize_t count, total;
-	char *buf;
 	
-	jstr_insert(path, 0, "should send file: ");
-	buf = jstr_cstr(path);
-	total = jstr_length(path);
+	if (!S_ISREG(stat_buf.st_mode))
+		send_err_and_exit(cfd, Not_Found);
 	
-	count = 0;
-	while ((count = write(cfd, buf, total)) > 0) {
-		total -= count;
-		buf += count;
+	/* 1 means has If-Modified-Since header */
+	need_send = TRUE;
+	if (hr->if_modified_flag == 1 &&
+	    difftime(stat_buf.st_mtime, hr->if_modified_since) >= 0)
+		need_send = FALSE;
+	
+	if (hr->method_type == HEAD) {
+		//send head response, without Content-Length
+		return;
 	}
+	
+	if ((fd = open(jstr_cstr(path), O_RDONLY)) == -1)
+		send_err_and_exit(cfd, Internal_Server_Error);
+	
+	//send http response head here
+	
+	while ((read_count = read(fd, buf, DEFAULT_BUFFSIZE)) > 0) {
+		buf_head = buf;
+		write_total = read_count;
+		while ((write_count = write(cfd, buf_head, write_total)) > 0) {
+			write_total -= write_count;
+			buf_head += write_count;
+		}
+		if (read_count == -1) {
+			perror("write socket error: ");
+			break;
+		}
+	}
+	if (read_count == -1)
+		perror("read error: ");
+	
+	(void)close(fd);
 }
 
 static void
@@ -494,36 +546,21 @@ send_err_and_exit(int cfd, int err_code)
 
 
 static void
-get_client_ip(char *client_ip, struct sockaddr *client) 
+get_ip(char *ip, struct sockaddr *addr) 
 {
-	void *client_in_addr;
+	void *in_addr;
 	
-	if (client->sa_family == AF_INET)
-		client_in_addr = 
-			(void *)&((struct sockaddr_in *)client)->sin_addr;
-	else if (client->sa_family == AF_INET6)
-		client_in_addr = 
-			(void *)&((struct sockaddr_in6 *)client)->sin6_addr;
+	if (addr->sa_family == AF_INET)
+		in_addr = 
+			(void *)&((struct sockaddr_in *)addr)->sin_addr;
+	else if (addr->sa_family == AF_INET6)
+		in_addr = 
+			(void *)&((struct sockaddr_in6 *)addr)->sin6_addr;
 	
-	(void)inet_ntop(client->sa_family, client_in_addr,
-				  client_ip, INET6_ADDRSTRLEN);
+	(void)inet_ntop(addr->sa_family, in_addr,
+					ip, INET6_ADDRSTRLEN);
 }
 
-/*
- * This function verify whether the url is a CGI call.
- */
-static BOOL
-is_cgi_call(JSTRING *url)
-{
-	/* url length must be greater than the length of "/cgi-bin" */
-	if (jstr_length(url) < 8)
-		return FALSE;
-	
-	if (strncmp(jstr_cstr(url), "/cgi-bin", 8) != 0)
-		return FALSE;
-
-	return TRUE;
-}
 
 /*
  * This function replace /~<user> with /home/<user>/sws/,
@@ -559,6 +596,31 @@ replace_userdir(JSTRING *path)
 	
 	jstr_free(user);
 	return TRUE;
+}
+
+/*
+ * This function separate query string from the original
+ * uri.
+ */
+static void
+separate_query(char *uri, JSTRING **url, JSTRING **query)
+{
+	size_t i;
+	JSTRING *juri;
+	
+	juri = jstr_create(uri);
+	
+	for (i = 0; i < jstr_length(juri); i++)
+		if (jstr_charat(juri, i) == '?')
+			break;
+	if (i != jstr_length(juri)) {
+		*url = jstr_substr(juri, 0, i);
+		*query = jstr_substr(juri, i + 1, jstr_length(juri) - i - 1);
+		jstr_free(juri);
+	} else {
+		*url = juri;
+		*query = jstr_create("");
+	}
 }
 
 static BOOL
