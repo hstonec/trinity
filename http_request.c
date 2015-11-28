@@ -46,13 +46,13 @@ int q_err;
  */
 int request(char *buf, struct http_request *request_info, struct set_logging *logging_info)
 {
-	char *request = buf;
+	char *request_head = buf;
 	char *Header_Field;
 	char *method;
 	int ret;
 	q_err = 0;
 	/* process the first line of http request */
-	method = strtok_r(NULL, "\r\n", &request);
+	method = strtok_r(NULL, "\r\n", &request_head);
 	/* set logging information */
 	logging_info->first_line = set_request(method);
 	time(&logging_info->receive_time);
@@ -64,7 +64,7 @@ int request(char *buf, struct http_request *request_info, struct set_logging *lo
 	
 	/* process the following header fields */
 	while(1){
-		Header_Field = strtok_r(NULL, "\r\n", &request);
+		Header_Field = strtok_r(NULL, "\r\n", &request_head);
 		if (Header_Field == NULL){
 			/* end of http request */
 			break;
