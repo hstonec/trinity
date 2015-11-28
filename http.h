@@ -49,10 +49,11 @@ struct http_response
 
 struct set_logging
 {
+	int fd; 
 	char *first_line;	/* already set up in request */
 	char *client_ip;
 	int state_code;
-	int content_length;
+	size_t content_length;
 	time_t receive_time;/* already set up in request */
 };
 
@@ -68,6 +69,6 @@ char* get_content_type(char* file_path);
  * This function will check set_logging structure to 
  * make sure there is no empty or illegal values.
  */
-int logging(int fd, struct set_logging *logging_info);
+int logging(struct set_logging *logging_info);
 void clean_logging(struct set_logging *logging_info);
 #endif
