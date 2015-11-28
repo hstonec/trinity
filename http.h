@@ -42,7 +42,7 @@ struct http_response
 {
         time_t last_modified;
         char *file_path;
-        unsigned long content_length;
+        size_t content_length;
         int http_status;
         int body_flag;
 };
