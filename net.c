@@ -32,7 +32,6 @@
 
 #define DEFAULT_BACKLOG 10
 #define DEFAULT_BUFFSIZE 512
-#define HTTP_REQUEST_MAX_LENGTH 8192
 
 static void do_http(struct swsopt *, int, struct sockaddr *,
 					struct sockaddr *, char *);
@@ -51,6 +50,7 @@ static void write_socket(int, char *, size_t);
 static int lexicographical_compare(const void *, const void *);
 
 static struct set_logging logger;
+static struct http_response h_res;
 
 /*
  * This function creates a server socket and binds
@@ -231,6 +231,7 @@ do_http(struct swsopt *so, int cfd,
 	char server_ip[INET6_ADDRSTRLEN];
 	char client_ip[INET6_ADDRSTRLEN];
 	struct http_request hr;
+    extern struct http_response h_res;
     extern struct set_logging logger;
 	JSTRING *url, *query;
 	
@@ -242,8 +243,6 @@ do_http(struct swsopt *so, int cfd,
     
 	read_http_header(cfd, &hr, &logger);
     
-    
-	
 	/* verify http version */
 	
 	/* Check if the request method is not HEAD or GET */
@@ -254,6 +253,8 @@ do_http(struct swsopt *so, int cfd,
 	/* should verify path like ../../../.. ? */
 	separate_query(hr.request_URL, &url, &query);
 	
+    h_res.file_path = jstr_cstr(url);
+    
 	/* If -c is set and URL starts with /cgi-bin */
 	if (so->opt['c'] == TRUE && is_cgi_call(url) == TRUE) {
 		/* Initialize struct cgi_request */
@@ -266,7 +267,7 @@ do_http(struct swsopt *so, int cfd,
 		cgi_req.path = url;
 		cgi_req.query = query;
 		
-		cgi_result = call_cgi(&cgi_req);
+		cgi_result = call_cgi(&cgi_req, &h_res);
 		
         logger.state_code = cgi_result;
         /* can't get Content-Length from cgi call */
@@ -360,14 +361,14 @@ read_http_header(int cfd, struct http_request *phr,
 static void
 send_file(int cfd, struct http_request *hr, JSTRING *path)
 {
-	BOOL need_send;
+	extern struct http_response h_res;
+    BOOL need_send;
 	struct stat stat_buf;
 	int fd;
-	ssize_t read_count, write_count;
-	size_t write_total;
+	ssize_t read_count;
 	char buf[DEFAULT_BUFFSIZE];
-	char *buf_head;
-	
+	char resp_buf[HTTP_RESPONSE_MAX_LENGTH];
+    size_t size;
 	
 	if (stat(jstr_cstr(path), &stat_buf) == -1) {
 		if (errno == ENOENT)
@@ -386,43 +387,69 @@ send_file(int cfd, struct http_request *hr, JSTRING *path)
 		need_send = FALSE;
 	
 	if (hr->method_type == HEAD) {
-		//send head response, without Content-Length
+		/* send head response, without Content-Length */
+        h_res.last_modified = time(NULL);
+        h_res.content_length = 0;
+        h_res.http_status = OK;
+        h_res.body_flag = 0;
+        
+        size = 0;
+        (void)response(&h_res, resp_buf, 
+                       HTTP_RESPONSE_MAX_LENGTH, &size);
+        
+        
+        write_socket(cfd, resp_buf, size);
 		return;
 	}
 	
 	if ((fd = open(jstr_cstr(path), O_RDONLY)) == -1)
 		send_err_and_exit(cfd, Internal_Server_Error);
 	
-	//send http response head here
-	
-	while ((read_count = read(fd, buf, DEFAULT_BUFFSIZE)) > 0) {
-		buf_head = buf;
-		write_total = read_count;
-		while ((write_count = write(cfd, buf_head, write_total)) > 0) {
-			write_total -= write_count;
-			buf_head += write_count;
-		}
-		if (read_count == -1) {
-			perror("write socket error: ");
-			break;
-		}
-	}
-	if (read_count == -1)
-		perror("read error: ");
-	
+	/* prepare response head data */
+	h_res.last_modified = stat_buf.st_mtime;
+    h_res.content_length = stat_buf.st_size;
+    h_res.body_flag = need_send;
+    /* 
+     * check if it needs to add Content-Length
+     * header and sends message body 
+     */
+    if (need_send)
+        h_res.http_status = OK;
+    else
+        h_res.http_status = Not_Modified;
+    
+    /* send http response head */
+    size = 0;
+    (void)response(&h_res, resp_buf, 
+                   HTTP_RESPONSE_MAX_LENGTH, &size);
+    write_socket(cfd, resp_buf, size);
+    
+    
+    /* send message body when needed */
+	if (need_send) {
+        while ((read_count = read(fd, buf, DEFAULT_BUFFSIZE)) > 0)
+            write_socket(cfd, buf, read_count);
+        if (read_count == -1)
+            perror("read error: ");
+    }
+    
 	(void)close(fd);
 }
 
 static void
 send_dirindex(int cfd, JSTRING *path, char *uri)
 {
-	extern struct set_logging logger;
+	extern struct http_response h_res;
+    extern struct set_logging logger;
     DIR *dp;
 	struct dirent *dirp;
 	size_t i, bodylen;
 	ARRAYLIST *list;
 	JSTRING *filename;
-	char *tag_before_title;
+	char resp_buf[HTTP_RESPONSE_MAX_LENGTH];
+    size_t size;
+    
+    char *tag_before_title;
 	char *tag_before_h1;
 	char *tag_before_li;
 	char *tag_left_li;
@@ -505,8 +532,18 @@ send_dirindex(int cfd, JSTRING *path, char *uri)
 			   tag_right_li_len * arrlist_size(list) +
 			   tag_after_li_len;
 	
-	// send response head here
+	/* send response head */
+    h_res.last_modified = time(NULL);
+    h_res.content_length = bodylen;
+    h_res.http_status = OK;
+    h_res.body_flag = 1;
+    
+    size = 0;
+    (void)response(&h_res, resp_buf, 
+                   HTTP_RESPONSE_MAX_LENGTH, &size);
+    write_socket(cfd, resp_buf, size);
 	
+    /* send message body */
 	write_socket(cfd, tag_before_title, tag_before_title_len);
 	write_socket(cfd, uri, uri_len);
 	write_socket(cfd, tag_before_h1, tag_before_h1_len);
@@ -538,33 +575,23 @@ send_dirindex(int cfd, JSTRING *path, char *uri)
 static void
 send_err_and_exit(int cfd, int err_code)
 {
+    extern struct http_response h_res;
 	extern struct set_logging logger;
-    // get response message according to error code
-	JSTRING *path;
-	ssize_t count, total;
-	char *buf;
-	
-	path = jstr_create("");
-	
-	if (err_code == Bad_Request)
-		jstr_insert(path, 0, "400 ");
-	else if (err_code == Not_Found)
-		jstr_insert(path, 0, "404 ");
-	else if (err_code == Internal_Server_Error)
-		jstr_insert(path, 0, "500 ");
-	else
-		jstr_insert(path, 0, "Unknown ");
-	
-	jstr_insert(path, 0, "err num: ");
-	buf = jstr_cstr(path);
-	total = jstr_length(path);
-	
-	count = 0;
-	while ((count = write(cfd, buf, total)) > 0) {
-		total -= count;
-		buf += count;
-	}
-	
+    char resp_buf[HTTP_RESPONSE_MAX_LENGTH];
+    size_t size;
+    ssize_t count;
+    
+    h_res.last_modified = time(NULL);
+    h_res.content_length = 0;
+    h_res.http_status = err_code;
+    h_res.body_flag = 0; // 0 means no body
+    
+    size = 0;
+    (void)response(&h_res, resp_buf, 
+                   HTTP_RESPONSE_MAX_LENGTH, &size);
+    
+    write_socket(cfd, resp_buf, size);
+    
 	close(cfd);
     
     /* log to file */

@@ -28,6 +28,8 @@
 #define rfc850_DATE			2
 #define asctime_DATE		3
 
+#define HTTP_REQUEST_MAX_LENGTH 8192
+#define HTTP_RESPONSE_MAX_LENGTH 8192
 
 struct http_request
 {

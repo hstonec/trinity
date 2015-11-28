@@ -15,7 +15,7 @@ struct cgi_request {
 };
 
 /* return 0 when succeed, or return http error status code */
-int call_cgi(struct cgi_request *);
+int call_cgi(struct cgi_request *, struct http_response *);
 BOOL is_cgi_call(JSTRING *);
 
 #endif /* !_CGI_H_ */
