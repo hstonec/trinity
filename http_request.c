@@ -458,7 +458,9 @@ void clean_request(struct http_request *request_info)
 int logging(int fd, struct set_logging *logging_info)
 {
 	char output_buf[LOGGING_BUF];
-	int ret, len, total;
+	char receive_time[26];
+	char *time_buf;
+	int ret, len, total, i;
 	ret = 0;
 	if (logging_info->client_ip == NULL || 
 		logging_info->content_length < 0 || 
@@ -466,10 +468,12 @@ int logging(int fd, struct set_logging *logging_info)
 		logging_info->receive_time < 0 || 
 		logging_info->state_code < 0)
 		return -1;
-
+	time_buf = asctime(gmtime(&logging_info->receive_time));
+	for (i = 0; i < 26 && time_buf[i] != '\n'; i++)
+		receive_time[i] = time_buf[i];
 	len = snprintf(output_buf, LOGGING_BUF, "%s %s \"%s\" %d %d\n",
 		logging_info->client_ip,
-		asctime(gmtime(&logging_info->receive_time)),
+		receive_time,
 		logging_info->first_line,
 		logging_info->state_code,
 		logging_info->content_length);
