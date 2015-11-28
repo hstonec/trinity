@@ -16,6 +16,9 @@
 
 #include "http.h"
 
+char* status_phrase(int code);
+char* get_content_type(char* file_path);
+
 int
 response(struct http_response *response_info, char *resp_buf, int capacity, int *size)
 {
@@ -38,25 +41,28 @@ response(struct http_response *response_info, char *resp_buf, int capacity, int 
 			"Date: %s\r\n"
 			"Server: SWS\r\n"
 			"Last-Modified: %s\r\n"
-			"Content-Type: %s\r\n"
-			"Content-Length: %lu\r\n\r\n",
+			"Content-Type: %s\r\n",
 			"1.0", response_info->http_status, status_phrase(response_info->http_status),
 			timestr,
 			lastmodstr,
-			get_content_type(response_info->file_path),
-			response_info->content_length);
+			get_content_type(response_info->file_path));
 	} else {
 		sprintf(buf,
 			"HTTP/%s %d %s\r\n"
 			"Date: %s\r\n"
 			"Server: SWS\r\n"
 			"Last-Modified: %s\r\n"
-			"Content-Type: text/html\r\n"
-			"Content-Length: %lu\r\n\r\n",
+			"Content-Type: text/html\r\n",
 			"1.0", response_info->http_status, status_phrase(response_info->http_status),
 			timestr,
-			lastmodstr,
-			response_info->content_length);
+			lastmodstr);
+	}
+	if (response_info->body_flag == 1) {
+		sprintf(len, "Content-Length: %lu\r\n\r\n", response_info->content_length);
+		strncat(buf, len, strlen(len));
+	} else {
+		sprintf(len, "\r\n");
+		strncat(buf, len, strlen(len));
 	}
 	for (int i = 0; i < strlen(buf); i ++) {
 		/* copy buf */
