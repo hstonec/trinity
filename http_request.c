@@ -112,7 +112,6 @@ char *http_decoding(struct http_request *request_info, char *http_url)
 			decoded_url[i] = http_url[j];
 		}
 	}
-	printf("%s\n", decoded_url);
 	return decoded_url;
 }
 
