@@ -38,6 +38,15 @@ struct http_request
 	time_t if_modified_since;
 };
 
+struct http_response
+{
+        time_t last_modified;
+        char *file_path;
+        unsigned long content_length;
+        int http_status;
+        int body_flag;
+};
+
 struct set_logging
 {
 	char *first_line;	/* already set up in request */
@@ -49,6 +58,11 @@ struct set_logging
 
 int request(char *buf, struct http_request *request_info, struct set_logging *logging_info);	/* deal with http request */
 void clean_request(struct http_request *request_info);
+
+/* deal with http response */
+int response(struct http_response *response_info, char *resp_buf, int capacity, int *size, char *err_buf);
+char* status_phrase(int code);
+char* get_content_type(char* file_path);
 
 /* logging will return the length function written
  * return 0 if error 

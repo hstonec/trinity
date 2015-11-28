@@ -14,7 +14,7 @@
 #include <unistd.h>
 #include <time.h>
 
-#include "http_response.h"
+#include "http.h"
 
 int
 response(struct http_response *response_info, char *resp_buf, int capacity, int *size, char *err_buf)
