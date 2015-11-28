@@ -61,8 +61,6 @@ int request(char *buf, struct http_request *request_info, struct set_logging *lo
 void clean_request(struct http_request *request_info);
 
 int response(struct http_response *response_info, char *resp_buf, int capacity, int *size);    /* deal with http response */
-char* status_phrase(int code);
-char* get_content_type(char* file_path);
 
 /* logging will return the length function written
  * return 0 if error 
