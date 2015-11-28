@@ -17,6 +17,7 @@
 #include "http.h"
 
 #define HEADER_FIELD	1
+#define LOGGING_BUF		4096
 
 int process_header(char *Header_Field, struct http_request *request_info);
 char *set_request(char *request_val);
@@ -27,7 +28,9 @@ int set_asctime(struct tm *http_date, char *request_val);
 int set_method(char *method, struct http_request *request_info);
 int set_rfc1123(struct tm *http_date, char *request_val);
 int set_rfc850(struct tm *http_date, char *request_val);
+char *http_decoding(struct http_request *request_info, char *http_url);
 int to_num(char *header);
+int htod(char hex1, char hex2);
 time_t set_date(char *request_val, struct http_request *request_info);
 
 static char *wkday[] = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", NULL };
@@ -36,23 +39,32 @@ static char *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"
 
 int q_err;
 
-int request(char *buf, struct http_request *request_info)
+/* This function processes http request header fields.
+ * This function will set values for http_request structure
+ * and set_logging structure to communicate with other functions
+ * This function will return 0 if succeed, larger than 0 if error.
+ */
+int request(char *buf, struct http_request *request_info, struct set_logging *logging_info)
 {
-	char *request = buf;
+	char *request_head = buf;
 	char *Header_Field;
 	char *method;
 	int ret;
 	q_err = 0;
 	/* process the first line of http request */
-	method = strtok_r(NULL, "\r\n", &request);
-// 	strncpy(request_info->first_line, method, strlen(method) + 1);
-// 	request_info->first_line[strlen(method)] = '\0';
+	method = strtok_r(NULL, "\r\n", &request_head);
+	/* set logging information */
+	logging_info->first_line = set_request(method);
+	time(&logging_info->receive_time);
+
 	ret = set_method(method, request_info);
 	if (ret)
 		return q_err;
+	/* http decoding */
+	
 	/* process the following header fields */
 	while(1){
-		Header_Field = strtok_r(NULL, "\r\n", &request);
+		Header_Field = strtok_r(NULL, "\r\n", &request_head);
 		if (Header_Field == NULL){
 			/* end of http request */
 			break;
@@ -64,6 +76,76 @@ int request(char *buf, struct http_request *request_info)
 	return q_err;
 }
 
+/* http decoding */
+char *http_decoding(struct http_request *request_info, char *http_url)
+{
+	/* if error, set q_err to 6*/
+	char *decoded_url;
+	int len = strlen(http_url) + 1;
+	int i = 0;
+	char hex1;
+	char hex2;
+	int decimal_str;
+
+	decoded_url = (char *)malloc(sizeof(char)*len);
+	if (decoded_url == NULL){
+		q_err = 7;
+		return NULL;
+	}
+	decoded_url[len] = '\0';
+
+	for (i = 0; i < len; i++)
+	{
+		if (http_url[i] == '%'){
+			hex1 = http_url[i + 1];
+			hex2 = http_url[i + 2];
+			decimal_str = htod(hex1, hex2);
+			if (decimal_str < 0 || !isascii(decimal_str)){
+				q_err = 7;
+				return NULL;
+			}
+			decoded_url[i] = (char)decimal_str;
+		}
+		else{
+			decoded_url[i] = http_url[i];
+		}
+	}
+	return decoded_url;
+}
+
+/* hex to decimal */
+int htod(char hex1, char hex2)
+{
+	int ret = 0;
+	char upper_c;
+	if (isalnum(hex1) && isalnum(hex2)){
+		if (isdigit(hex1))
+			ret += atoi(&hex1) * 16;
+		if (isalpha(hex1)){
+			upper_c = toupper(hex1);
+			if (upper_c >= 'A'&&upper_c <= 'F')
+				ret += (upper_c - 'A' + 10) * 16;
+			else
+				return -1;
+		}
+		else
+			return -1;
+		if (isdigit(hex2))
+			ret += atoi(&hex2);
+		if (isalpha(hex2)){
+			upper_c = toupper(hex2);
+			if (upper_c >= 'A'&&upper_c <= 'F')
+				ret += upper_c - 'A' + 10;
+			else
+				return -1;
+		}
+		else
+			return -1;
+		return ret;
+	}
+	return -1;
+}
+
 /* set http method to http_request, return 1 if error */
 int set_method(char *method, struct http_request *request_info)
 {
@@ -73,7 +155,7 @@ int set_method(char *method, struct http_request *request_info)
 	char *rest;
 	method_type = strtok_r(method, " ", &rest);
 	method_val = strtok_r(NULL, " ", &rest);
-	(void*)strtok_r(rest, "/", &http_version);
+	(void)strtok_r(rest, "/", &http_version);
 	if (method_type&&method_val&&http_version)
 	{
 		if (strcmp(method_type, "GET") == 0)
@@ -82,7 +164,8 @@ int set_method(char *method, struct http_request *request_info)
 			request_info->method_type = HEAD;
 		if (strcmp(method_type, "POST") == 0)
 			request_info->method_type = POST;
-		request_info->request_URL = set_request(method_val);
+		request_info->request_URL = http_decoding(request_info, method_val);
+		//request_info->request_URL = set_request(method_val);
 		request_info->http_version = set_request(http_version);
 		return 0;
 	}
@@ -365,4 +448,51 @@ void clean_request(struct http_request *request_info)
 	request_info->request_URL = NULL;
 	free(request_info->http_version);
 	request_info->http_version = NULL;
+}
+
+/* Logging writes logging information to logging file.
+ * If there is an error, logging will return 0. 
+ * If succeed, logging will return the length written to 
+ * logging file.
+ */
+int logging(int fd, struct set_logging *logging_info)
+{
+	char output_buf[LOGGING_BUF];
+	int ret, len, total;
+	ret = 0;
+	if (logging_info->client_ip == NULL || 
+		logging_info->content_length < 0 || 
+		logging_info->first_line == NULL || 
+		logging_info->receive_time < 0 || 
+		logging_info->state_code < 0)
+		return -1;
+
+	len = snprintf(output_buf, LOGGING_BUF, "%s %s \"%s\" %d %d\n",
+		logging_info->client_ip,
+		asctime(gmtime(&logging_info->receive_time)),
+		logging_info->first_line,
+		logging_info->state_code,
+		logging_info->content_length);
+	total = len;
+	if (len){
+		while (len)
+		{
+			if (len>LOGGING_BUF)
+				ret = write(fd, output_buf, LOGGING_BUF);
+			else
+				ret = write(fd, output_buf, len);
+			len -= ret;
+		}
+		return total;
+	}
+	else
+		return 0;
+}
+
+void clean_logging(struct set_logging *logging_info)
+{
+	free(logging_info->client_ip);
+	logging_info->client_ip = NULL;
+	free(logging_info->first_line);
+	logging_info->first_line = NULL;
 }
