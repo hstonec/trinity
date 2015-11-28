@@ -368,8 +368,10 @@ Monday, 02-Jun-82 23:59:59 GMT
 asctime-date   = wkday SP date3 SP time SP 4DIGIT
 Mon Jun  2 23:59:59 1982
 */
-time_t set_date(char *request_val,struct http_request *request_info)
+time_t set_date(char *request_val, struct http_request *request_info)
 {
+	putenv("TZ=GMT");
+	tzset();
 	struct tm http_date;
 	time_t t;
 	if (strstr(request_val, "GMT")){
