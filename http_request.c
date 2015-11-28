@@ -83,6 +83,7 @@ char *http_decoding(struct http_request *request_info, char *http_url)
 	char *decoded_url;
 	int len = strlen(http_url) + 1;
 	int i = 0;
+	int j = 0;
 	char hex1;
 	char hex2;
 	int decimal_str;
@@ -94,22 +95,24 @@ char *http_decoding(struct http_request *request_info, char *http_url)
 	}
 	decoded_url[len] = '\0';
 
-	for (i = 0; i < len; i++)
+	for (i = 0, j = 0; i < len; i++, j++)
 	{
-		if (http_url[i] == '%'){
-			hex1 = http_url[i + 1];
-			hex2 = http_url[i + 2];
+		if (http_url[j] == '%'){
+			hex1 = http_url[j + 1];
+			hex2 = http_url[j + 2];
 			decimal_str = htod(hex1, hex2);
 			if (decimal_str < 0 || !isascii(decimal_str)){
 				q_err = 7;
 				return NULL;
 			}
 			decoded_url[i] = (char)decimal_str;
+			j += 2;
 		}
 		else{
-			decoded_url[i] = http_url[i];
+			decoded_url[i] = http_url[j];
 		}
 	}
+	printf("%s\n", decoded_url);
 	return decoded_url;
 }
 
@@ -121,7 +124,7 @@ int htod(char hex1, char hex2)
 	if (isalnum(hex1) && isalnum(hex2)){
 		if (isdigit(hex1))
 			ret += atoi(&hex1) * 16;
-		if (isalpha(hex1)){
+		else if (isalpha(hex1)){
 			upper_c = toupper(hex1);
 			if (upper_c >= 'A'&&upper_c <= 'F')
 				ret += (upper_c - 'A' + 10) * 16;
@@ -130,9 +133,10 @@ int htod(char hex1, char hex2)
 		}
 		else
 			return -1;
+
 		if (isdigit(hex2))
 			ret += atoi(&hex2);
-		if (isalpha(hex2)){
+		else if (isalpha(hex2)){
 			upper_c = toupper(hex2);
 			if (upper_c >= 'A'&&upper_c <= 'F')
 				ret += upper_c - 'A' + 10;
@@ -472,7 +476,7 @@ int logging(struct set_logging *logging_info)
 	time_buf = asctime(gmtime(&logging_info->receive_time));
 	for (i = 0; i < 26 && time_buf[i] != '\n'; i++)
 		receive_time[i] = time_buf[i];
-	len = snprintf(output_buf, LOGGING_BUF, "%s %s \"%s\" %d %d\n",
+	len = snprintf(output_buf, LOGGING_BUF, "%s %s \"%s\" %d %ld\n",
 		logging_info->client_ip,
 		receive_time,
 		logging_info->first_line,

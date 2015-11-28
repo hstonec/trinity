@@ -44,7 +44,7 @@ struct set_logging
 	char *first_line;	/* already set up in request */
 	char *client_ip;
 	int state_code;
-	int content_length;
+	size_t content_length;
 	time_t receive_time;/* already set up in request */
 };
 
