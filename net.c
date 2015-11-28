@@ -36,7 +36,8 @@
 
 static void do_http(struct swsopt *, int, struct sockaddr *,
 					struct sockaddr *, char *);
-static void read_http_header(int, struct http_request *);
+static void read_http_header(int, struct http_request *,
+                             struct set_logging *);
 static void get_ip(char *, struct sockaddr *);
 static void send_file(int, struct http_request *, JSTRING *);
 static void send_dirindex(int, JSTRING *, char *uri);
@@ -48,6 +49,8 @@ static BOOL is_dir(char *);
 static BOOL contains_indexfile(JSTRING *);
 static void write_socket(int, char *, size_t);
 static int lexicographical_compare(const void *, const void *);
+
+static struct set_logging logger;
 
 /*
  * This function creates a server socket and binds
@@ -228,12 +231,18 @@ do_http(struct swsopt *so, int cfd,
 	char server_ip[INET6_ADDRSTRLEN];
 	char client_ip[INET6_ADDRSTRLEN];
 	struct http_request hr;
+    extern struct set_logging logger;
 	JSTRING *url, *query;
 	
 	get_ip(server_ip, server);
 	get_ip(client_ip, client);
 	
-	read_http_header(cfd, &hr);
+    logger.client_ip = client_ip;
+    logger.fd = so->fd_logfile;
+    
+	read_http_header(cfd, &hr, &logger);
+    
+    
 	
 	/* verify http version */
 	
@@ -258,8 +267,12 @@ do_http(struct swsopt *so, int cfd,
 		cgi_req.query = query;
 		
 		cgi_result = call_cgi(&cgi_req);
-		if (cgi_result != 0)
-			send_err_and_exit(cfd, cgi_result);
+		
+        logger.state_code = cgi_result;
+        /* can't get Content-Length from cgi call */
+        logger.content_length = 0;
+        
+        (void)logging(&logger);
 	} else {
 		/* 
 		 * If url doesn't start with /~<user> and is a 
@@ -290,11 +303,15 @@ do_http(struct swsopt *so, int cfd,
 	/* If If-Modified-Since is set, detect */
 	jstr_free(url);
 	jstr_free(query);
+    
+    clean_request(&hr);
+    clean_logging(&logger);
 }
 
 
 static void
-read_http_header(int cfd, struct http_request *phr)
+read_http_header(int cfd, struct http_request *phr, 
+                 struct set_logging *logger)
 {
 	ssize_t i, count;
 	char buf[DEFAULT_BUFFSIZE];
@@ -335,7 +352,7 @@ read_http_header(int cfd, struct http_request *phr)
 		send_err_and_exit(cfd, Bad_Request);
 	
 	/* request() return 0 means success */
-	if (request(request_head, phr) != 0)
+	if (request(request_head, phr, logger) != 0)
 		send_err_and_exit(cfd, Bad_Request);
 	
 }
@@ -399,7 +416,8 @@ send_file(int cfd, struct http_request *hr, JSTRING *path)
 static void
 send_dirindex(int cfd, JSTRING *path, char *uri)
 {
-	DIR *dp;
+	extern struct set_logging logger;
+    DIR *dp;
 	struct dirent *dirp;
 	size_t i, bodylen;
 	ARRAYLIST *list;
@@ -508,13 +526,20 @@ send_dirindex(int cfd, JSTRING *path, char *uri)
 	write_socket(cfd, tag_after_li, tag_after_li_len);
 	
 	arrlist_free(list);
+    
+    /* log the response */
+    logger.state_code = OK;
+    logger.content_length = bodylen;
+    
+    (void)logging(&logger);
 }
 
 
 static void
 send_err_and_exit(int cfd, int err_code)
 {
-	// get response message according to error code
+	extern struct set_logging logger;
+    // get response message according to error code
 	JSTRING *path;
 	ssize_t count, total;
 	char *buf;
@@ -541,6 +566,15 @@ send_err_and_exit(int cfd, int err_code)
 	}
 	
 	close(cfd);
+    
+    /* log to file */
+    logger.state_code = err_code;
+    logger.content_length = 0;
+    
+    /* return 0 when error happened */
+    (void)logging(&logger);
+        
+    
 	_exit(EXIT_FAILURE);
 }
 
