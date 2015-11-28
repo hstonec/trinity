@@ -131,7 +131,7 @@ call_cgi(struct cgi_request *cgi_req)
 		_exit(EXIT_SUCCESS);
 	}
 
-	return 0;
+	return OK;
 }
 
 /*
