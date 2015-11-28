@@ -57,7 +57,7 @@ response(struct http_response *response_info, char *resp_buf, int capacity, int 
 			timestr,
 			lastmodstr);
 	}
-	if (response_info->body_flag == 1) {
+	if (response_info->body_flag == 1 && response_info->http_status != Not_Modified) {
 		sprintf(len, "Content-Length: %lu\r\n\r\n", response_info->content_length);
 		strncat(buf, len, strlen(len));
 	} else {
