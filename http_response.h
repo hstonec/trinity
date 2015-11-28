@@ -22,17 +22,15 @@
 struct http_response
 {
 	time_t last_modified;
-	//char *file_path;
-	char *content_type;
+	char *file_path;
 	unsigned long content_length;
 	int http_status;
 	int body_flag;
-	int keep_alive;
 };
 
 /* deal with http response */
-int response(struct http_response *response_info, char *resp_buf, int capacity, int *size);
+int response(struct http_response *response_info, char *resp_buf, int capacity, int *size, char *err_buf);
 char* status_phrase(int code);
-//void clean_response(struct http_response *response_info);
+char* get_content_type(char* file_path);
 #endif
 
