@@ -455,12 +455,13 @@ void clean_request(struct http_request *request_info)
  * If succeed, logging will return the length written to 
  * logging file.
  */
-int logging(int fd, struct set_logging *logging_info)
+int logging(struct set_logging *logging_info)
 {
 	char output_buf[LOGGING_BUF];
 	char receive_time[26];
 	char *time_buf;
 	int ret, len, total, i;
+	int fd = logging_info->fd;
 	ret = 0;
 	if (logging_info->client_ip == NULL || 
 		logging_info->content_length < 0 || 

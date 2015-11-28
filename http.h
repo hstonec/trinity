@@ -40,6 +40,7 @@ struct http_request
 
 struct set_logging
 {
+	int fd; 
 	char *first_line;	/* already set up in request */
 	char *client_ip;
 	int state_code;
@@ -55,6 +56,6 @@ void clean_request(struct http_request *request_info);
  * This function will check set_logging structure to 
  * make sure there is no empty or illegal values.
  */
-int logging(int fd, struct set_logging *logging_info);
+int logging(struct set_logging *logging_info);
 void clean_logging(struct set_logging *logging_info);
 #endif
