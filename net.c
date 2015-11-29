@@ -70,7 +70,7 @@ static struct http_response h_res;
 void
 start_server(struct swsopt *so)
 {
-	int sfd, cfd;
+	int sfd, cfd, errcode;
 	pid_t pid;
 	char *server_port;
 	struct addrinfo hint, *res;
@@ -100,8 +100,15 @@ start_server(struct swsopt *so)
 		hint.ai_socktype = SOCK_STREAM;
 		hint.ai_flags = AI_NUMERICHOST;
 		
-		if (getaddrinfo(so->address, server_port, &hint, &res) != 0)
-			perror_exit("get address information error: ");
+		errcode = getaddrinfo(so->address, server_port, &hint, &res);
+		if (errcode != 0) {
+			fprintf(stderr, 
+				"%s: get address information error: %s\n", 
+				getprogname(),
+				gai_strerror(errcode));
+			exit(EXIT_FAILURE);
+		}
+			
 		
 		server = res->ai_addr;
 		server_len = res->ai_addrlen;
