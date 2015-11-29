@@ -27,6 +27,8 @@ response(struct http_response *response_info, char *resp_buf, int capacity, int 
 	char lastmodstr[64];
 	char entity_html[capacity];
 	time_t present;
+	char len[32];
+	int i = 0;
 
 	memset(entity_html, 0, sizeof(entity_html));
 	time(&present);
@@ -64,7 +66,7 @@ response(struct http_response *response_info, char *resp_buf, int capacity, int 
 		sprintf(len, "\r\n");
 		strncat(buf, len, strlen(len));
 	}
-	for (int i = 0; i < strlen(buf); i ++) {
+	for (i = 0; i < strlen(buf); i ++) {
 		/* copy buf */
 		resp_buf[i] = buf[i];
 	}
