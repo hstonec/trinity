@@ -1,7 +1,7 @@
 CC=cc
 
-sws: main.c net.o cgi.o http_request.o jstring.o arraylist.o
-	$(CC) -Wall -g -o sws main.c net.o cgi.o http_request.o jstring.o arraylist.o \
+sws: main.c net.o cgi.o http_request.o http_response.o jstring.o arraylist.o
+	$(CC) -Wall -g -o sws main.c net.o cgi.o http_request.o http_response.o jstring.o arraylist.o \
 	-lbsd
 
 net.o: net.c net.h sws.h macros.h http.h
@@ -13,6 +13,9 @@ cgi.o: cgi.c cgi.h http.h
 http_request.o: http_request.c http.h
 	$(CC) -Wall -g -c http_request.c
 
+http_response.o: http_response.c http.h
+	$(CC) -Wall -g -c http_response.c
+
 jstring.o: jstring.c jstring.h
 	$(CC) -Wall -g -c jstring.c
 
@@ -21,4 +24,4 @@ arraylist.o: arraylist.c arraylist.h
 
 .PHONY: clean
 clean:
-	-rm sws net.o cgi.o http_request.o jstring.o arraylist.o
+	-rm sws net.o cgi.o http_request.o http_response.o jstring.o arraylist.o

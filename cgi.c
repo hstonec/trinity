@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "jstring.h"
 #include "macros.h"
@@ -22,14 +23,19 @@ static JSTRING *get_parent(JSTRING *);
 /* used by alarm_handler() to kill cgi process */
 static pid_t cgi_pid;
 static void convert_request_method(int , char *);
+static void write_socket(int, char *, size_t);
 
 int
-call_cgi(struct cgi_request *cgi_req)
+call_cgi(struct cgi_request *cgi_req,
+         struct http_response *h_res)
 {
 	extern pid_t cgi_pid;
 	pid_t pid;
 	char *env_list[10];
 	char request_method[5];
+    char resp_buf[HTTP_RESPONSE_MAX_LENGTH];
+    size_t size;
+    
 	JSTRING *cwd;
 	JSTRING *mv_GATEWAY_INTERFACE;
 	JSTRING *mv_QUERY_STRING;
@@ -108,8 +114,17 @@ call_cgi(struct cgi_request *cgi_req)
 		
 		env_list[9] = NULL;
 		
-		// send http response header here
-		
+		/* send http response header here */
+        h_res->last_modified = time(NULL);
+        h_res->http_status = OK;
+        h_res->body_flag = 0;
+
+        size = 0;
+        (void)response(h_res, resp_buf, 
+                       HTTP_RESPONSE_MAX_LENGTH, &size);
+        write_socket(cgi_req->cfd, resp_buf, size);
+        
+        
 		if (dup2(cgi_req->cfd, STDOUT_FILENO) == -1)
 			perror("dup2 error: ");
 	
@@ -204,4 +219,18 @@ convert_request_method(int method, char *request_method)
 		strcpy(request_method, "HEAD");
 	else
 		strcpy(request_method, "");
+}
+
+static void
+write_socket(int sfd, char *buf, size_t len)
+{
+	ssize_t count;
+		
+	count = 0;
+	while ((count = write(sfd, buf, len)) > 0) {
+		len -= count;
+		buf += count;
+	}
+	if (count == -1)
+		send_err_and_exit(sfd, Internal_Server_Error);
 }
