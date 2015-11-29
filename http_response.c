@@ -32,8 +32,8 @@ response(struct http_response *response_info, char *resp_buf, size_t capacity, s
 
 	memset(entity_html, 0, sizeof(entity_html));
 	time(&present);
-	strftime(timestr, sizeof(timestr), rfc1123_DATE, gmtime(&present));
-	strftime(lastmodstr, sizeof(lastmodstr), rfc1123_DATE, gmtime(&response_info->last_modified));
+	strftime(timestr, sizeof(timestr), rfc1123_DATE_STR, gmtime(&present));
+	strftime(lastmodstr, sizeof(lastmodstr), rfc1123_DATE_STR, gmtime(&response_info->last_modified));
 
 	/* only 200 and 304 will get the green light*/
 	if (response_info->http_status == OK ||
