@@ -20,7 +20,7 @@ char* status_phrase(int code);
 char* get_content_type(char* file_path);
 
 int
-response(struct http_response *response_info, char *resp_buf, int capacity, int *size)
+response(struct http_response *response_info, char *resp_buf, size_t capacity, size_t *size)
 {
 	char buf[capacity];
 	char timestr[64];
