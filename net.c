@@ -11,15 +11,18 @@
 
 #include <bsd/stdlib.h>
 
-#include <fcntl.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <time.h>
+#include <unistd.h>
+
 
 #include "jstring.h"
 #include "arraylist.h"
@@ -42,12 +45,14 @@ static void send_file(int, struct http_request *, JSTRING *);
 static void send_dirindex(int, JSTRING *, char *uri);
 static void send_err_and_exit(int, int);
 
+static void verify_port(char *);
 static BOOL replace_userdir(JSTRING *);
 static void separate_query(char *, JSTRING **, JSTRING **);
 static BOOL is_dir(char *);
 static BOOL contains_indexfile(JSTRING *);
 static void write_socket(int, char *, size_t);
 static int lexicographical_compare(const void *, const void *);
+static void perror_exit(char *);
 
 static struct set_logging logger;
 static struct http_response h_res;
@@ -65,7 +70,7 @@ static struct http_response h_res;
 void
 start_server(struct swsopt *so)
 {
-	int sfd, cfd, err;
+	int sfd, cfd;
 	pid_t pid;
 	char *server_port;
 	struct addrinfo hint, *res;
@@ -75,11 +80,14 @@ start_server(struct swsopt *so)
 	socklen_t server_len, client_len;
 	
 	
-	/* set server socket port */
-	if (so->opt['p'] == TRUE)
+	/* set server socket port and verify */
+	if (so->opt['p'] == TRUE) {
+		verify_port(so->port);
 		server_port = so->port;
-	else
+	} else
 		server_port = "8080";
+	
+	
 	
 	/* 
 	 * If -i address is set, try to get address information 
@@ -92,14 +100,8 @@ start_server(struct swsopt *so)
 		hint.ai_socktype = SOCK_STREAM;
 		hint.ai_flags = AI_NUMERICHOST;
 		
-		err = getaddrinfo(so->address, server_port, &hint, &res);
-		if (err != 0) {
-			(void)fprintf(stderr, 
-				"%s: get address information error: %s\n", 
-				getprogname(),
-				gai_strerror(err));
-			exit(EXIT_FAILURE);
-		}
+		if (getaddrinfo(so->address, server_port, &hint, &res) != 0)
+			perror_exit("get address information error: ");
 		
 		server = res->ai_addr;
 		server_len = res->ai_addrlen;
@@ -119,18 +121,15 @@ start_server(struct swsopt *so)
 	 * then start to listening
 	 */
 	sfd = socket(server->sa_family, SOCK_STREAM, 0);
-	if (sfd == -1) {
-		perror("create socket error");
-		exit(EXIT_FAILURE);
-	}
-	if (bind(sfd, server, server_len) == -1) {
-		perror("bind socket error");
-		exit(EXIT_FAILURE);
-	}
-	if (listen(sfd, DEFAULT_BACKLOG) == -1) {
-		perror("listen socket error");
-		exit(EXIT_FAILURE);
-	}
+	if (sfd == -1)
+		perror_exit("create socket error");
+		
+	if (bind(sfd, server, server_len) == -1)
+		perror_exit("bind socket error");
+	
+	if (listen(sfd, DEFAULT_BACKLOG) == -1)
+		perror_exit("listen socket error");
+		
 	
 	/* 
 	 * Since ipv4 and ipv6 have different structure,
@@ -145,30 +144,19 @@ start_server(struct swsopt *so)
 		client_len = sizeof(struct sockaddr_in);
 	}
 	
-	/* 
-	 * If -d isn't set, run this server as a daemon process.
-	 */
-	
-	
+	/* If -d isn't set, run this server as a daemon process. */
 	if (so->opt['d'] == FALSE)
-		if (daemon(0, 0) != 0) {
-			(void)fprintf(stderr,
-				"%s: daemonize error: %s",
-				getprogname(),
-				strerror(errno));
-			exit(EXIT_FAILURE);
-		}
-	
-
+		if (daemon(0, 0) != 0)
+			perror_exit("daemonize error: ");
+		
 	/*
 	 * This infinite loop makes server accept next connection
 	 * after closing the last socket.
 	 */
 	for (;;) {
-		if ((cfd = accept(sfd, client, &client_len)) == -1) {
-			perror("accept socket error");
-			exit(EXIT_FAILURE);
-		}
+		if ((cfd = accept(sfd, client, &client_len)) == -1)
+			perror_exit("accept socket error");
+		
 		
 		/*
 		 * To avoid zombie process, fork(2) will be called twice
@@ -177,25 +165,16 @@ start_server(struct swsopt *so)
 		 * The second child will become the child of init process.
 		 */
 		if (so->opt['d'] == FALSE) {
-			if ((pid = fork()) == -1) {
-				(void)fprintf(stderr,
-					"%s: fork error: %s",
-					getprogname(),
-					strerror(errno));
-				exit(EXIT_FAILURE);
-			}
+			if ((pid = fork()) == -1)
+				perror_exit("fork first child error: ");
 			
 			if (pid > 0) {
 				close(cfd);
 				(void)wait(NULL);
 			} else {
-				if ((pid = fork()) == -1) {
-					(void)fprintf(stderr,
-						"%s: fork error: %s",
-						getprogname(),
-						strerror(errno));
-					_exit(EXIT_FAILURE);
-				}
+				if ((pid = fork()) == -1)
+					perror_exit("fork second child error: ");
+				
 				if (pid > 0) 
 					_exit(EXIT_SUCCESS);
 				else {
@@ -434,7 +413,7 @@ send_file(int cfd, struct http_request *hr, JSTRING *path)
         while ((read_count = read(fd, buf, DEFAULT_BUFFSIZE)) > 0)
             write_socket(cfd, buf, read_count);
         if (read_count == -1)
-            perror("read error: ");
+            perror_exit("read file error: ");
     }
 	(void)close(fd);
 	
@@ -634,6 +613,35 @@ get_ip(char *ip, struct sockaddr *addr)
 					ip, INET6_ADDRSTRLEN);
 }
 
+static void 
+verify_port(char *port)
+{
+	size_t i;
+	unsigned long int num;
+	
+	for (i = 0; i < strlen(port); i++)
+		if (!isdigit(port[i])) {
+			fprintf(stderr, 
+				"%s: port must be a positive integer\n", 
+				getprogname());
+			exit(EXIT_FAILURE);
+		}
+	
+	num = strtoul(port, NULL, 10);
+	if (num == ULONG_MAX) {
+		fprintf(stderr, 
+			"%s: port is too large\n", 
+			getprogname());
+		exit(EXIT_FAILURE);
+	}
+	
+	if (num <= 1023) {
+		fprintf(stderr, 
+			"%s: port must be greater or equal than 1024\n", 
+			getprogname());
+		exit(EXIT_FAILURE);
+	}
+}
 
 /*
  * This function replace /~<user> with /home/<user>/sws/,
@@ -753,4 +761,12 @@ lexicographical_compare(const void *p1, const void *p2)
 	fp2 = *(JSTRING * const *)p2;
 	
 	return strcmp(jstr_cstr(fp1), jstr_cstr(fp2));
+}
+
+static void
+perror_exit(char *message)
+{
+	fprintf(stderr, "%s: ", getprogname());
+	perror(message);
+	exit(EXIT_FAILURE);
 }
