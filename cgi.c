@@ -232,5 +232,5 @@ write_socket(int sfd, char *buf, size_t len)
 		buf += count;
 	}
 	if (count == -1)
-		send_err_and_exit(sfd, Internal_Server_Error);
+		perror("write socket error: ");
 }
