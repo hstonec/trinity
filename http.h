@@ -33,7 +33,7 @@ struct http_request
 {
 	int method_type;
 	char *request_URL;
-	char *http_version;
+	float http_version;
 	int if_modified_flag;  /* 1 for yes */
 	time_t if_modified_since;
 };

@@ -32,6 +32,9 @@ char *http_decoding(struct http_request *request_info, char *http_url);
 int to_num(char *header);
 int htod(char hex1, char hex2);
 time_t set_date(char *request_val, struct http_request *request_info);
+char *split_str(char *source, char **rest);
+int check_version(char *http_version);
+
 
 static char *wkday[] = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", NULL };
 static char *weekday[] = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", NULL };
@@ -52,7 +55,10 @@ int request(char *buf, struct http_request *request_info, struct set_logging *lo
 	int ret;
 	q_err = 0;
 	/* process the first line of http request */
-	method = strtok_r(NULL, "\r\n", &request_head);
+	method = split_str(NULL, &request_head);
+	//method = strtok_r(NULL, "\r\n", &request_head);
+	if (method == NULL)
+		return 1;
 	/* set logging information */
 	logging_info->first_line = set_request(method);
 	time(&logging_info->receive_time);
@@ -64,15 +70,18 @@ int request(char *buf, struct http_request *request_info, struct set_logging *lo
 	
 	/* process the following header fields */
 	while(1){
-		Header_Field = strtok_r(NULL, "\r\n", &request_head);
-		if (Header_Field == NULL){
-			/* end of http request */
-			break;
-		}
+		Header_Field = split_str(NULL, &request_head);
+		//Header_Field = strtok_r(NULL, "\r\n", &request_head);
+		if (Header_Field == NULL)
+			return 1;
+		if (strcmp(Header_Field, "") == 0)
+			break;/* end of http request */
+
 		ret = process_header(Header_Field, request_info);
 		if (ret > 0)
 			return q_err;
 	}
+
 	return q_err;
 }
 
@@ -169,7 +178,13 @@ int set_method(char *method, struct http_request *request_info)
 			request_info->method_type = POST;
 		request_info->request_URL = http_decoding(request_info, method_val);
 		//request_info->request_URL = set_request(method_val);
-		request_info->http_version = set_request(http_version);
+		//request_info->http_version = set_request(http_version);
+		if (check_version(http_version))
+			request_info->http_version = atof(http_version);
+		else{
+			q_err = 1;
+			return 1;
+		}
 		return 0;
 	}
 	q_err = 1;
@@ -451,8 +466,8 @@ void clean_request(struct http_request *request_info)
 {
 	free(request_info->request_URL);
 	request_info->request_URL = NULL;
-	free(request_info->http_version);
-	request_info->http_version = NULL;
+	//free(request_info->http_version);
+	//request_info->http_version = NULL;
 }
 
 /* Logging writes logging information to logging file.
@@ -501,8 +516,61 @@ int logging(struct set_logging *logging_info)
 
 void clean_logging(struct set_logging *logging_info)
 {
-	free(logging_info->client_ip);
-	logging_info->client_ip = NULL;
 	free(logging_info->first_line);
 	logging_info->first_line = NULL;
+}
+
+char *split_str(char *source, char **rest)
+{
+	char *ret;
+	if (source == NULL)
+		source = *rest;
+	ret = source;
+	int len = strlen(source);
+	int i = 0;
+	for (i = 0; i < len; i++)
+	{
+		if (source[i] == '\r'&&source[i + 1] == '\n')
+		{
+			source[i] = '\0';
+			source[i + 1] = '\0';
+			*rest = source + i + 2;
+			return ret;
+		}
+	}
+	return "";
+}
+
+/* check if the http version is a proper formatted string 
+ * return 1 if correct 
+ */
+int check_version(char *http_version)
+{
+	int len = strlen(http_version);
+	int i, dot_flag, digit_flag;
+	dot_flag = 0;
+	digit_flag = 0;
+	for (i = 0; i < len; i++)
+	{
+		if (dot_flag)
+		{
+			if (!isdigit(http_version[i]))
+				return 0;
+			else
+				digit_flag = 2;
+		}
+		else
+		{
+			if (http_version[i] == '.'&&digit_flag == 1)
+				dot_flag = 1;
+			if (!isdigit(http_version[i]) && http_version[i] != '.')
+				return 0;
+			else
+				digit_flag = 1;
+		}
+	}
+	if (digit_flag == 2)
+		return 1;
+	else
+		return 0;
 }
