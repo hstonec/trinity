@@ -590,9 +590,13 @@ send_err_and_exit(int cfd, int err_code)
     size_t size;
     
     h_res.last_modified = time(NULL);
-    h_res.content_length = 0;
     h_res.http_status = err_code;
-    h_res.body_flag = 0; // 0 means no body
+    /* 
+	 * 4xx and 5xx should include Content-Length, but
+	 * the value could be 0.
+	 */
+	h_res.content_length = 0;
+	h_res.body_flag = 1; // 1 means including Content-Length
     
     size = 0;
     (void)response(&h_res, resp_buf, 
