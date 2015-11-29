@@ -478,9 +478,8 @@ void clean_request(struct http_request *request_info)
 int logging(struct set_logging *logging_info)
 {
 	char output_buf[LOGGING_BUF];
-	char receive_time[26];
-	char *time_buf;
-	int ret, len, total, i;
+	char receive_time[30];
+	int ret, len, total;
 	int fd = logging_info->fd;
 	ret = 0;
 	if (logging_info->client_ip == NULL || 
@@ -489,9 +488,8 @@ int logging(struct set_logging *logging_info)
 		logging_info->receive_time < 0 || 
 		logging_info->state_code < 0)
 		return -1;
-	time_buf = asctime(gmtime(&logging_info->receive_time));
-	for (i = 0; i < 26 && time_buf[i] != '\n'; i++)
-		receive_time[i] = time_buf[i];
+	if (!strftime(receive_time, 30, "%a, %d %b %Y %H:%M:%S GMT", gmtime(&logging_info->receive_time)))
+		return 0;
 	len = snprintf(output_buf, LOGGING_BUF, "%s %s \"%s\" %d %ld\n",
 		logging_info->client_ip,
 		receive_time,
