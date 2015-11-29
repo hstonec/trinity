@@ -361,6 +361,7 @@ read_http_header(int cfd, struct http_request *phr,
 static void
 send_file(int cfd, struct http_request *hr, JSTRING *path)
 {
+	extern struct set_logging logger;
 	extern struct http_response h_res;
     BOOL need_send;
 	struct stat stat_buf;
@@ -407,16 +408,19 @@ send_file(int cfd, struct http_request *hr, JSTRING *path)
 	
 	/* prepare response head data */
 	h_res.last_modified = stat_buf.st_mtime;
-    h_res.content_length = stat_buf.st_size;
     h_res.body_flag = need_send;
     /* 
      * check if it needs to add Content-Length
      * header and sends message body 
      */
-    if (need_send)
-        h_res.http_status = OK;
-    else
-        h_res.http_status = Not_Modified;
+    if (need_send) {
+		h_res.http_status = OK;
+		h_res.content_length = stat_buf.st_size;
+	} else {
+		h_res.http_status = Not_Modified;
+		h_res.content_length = 0;
+	}
+        
     
     /* send http response head */
     size = 0;
@@ -432,8 +436,13 @@ send_file(int cfd, struct http_request *hr, JSTRING *path)
         if (read_count == -1)
             perror("read error: ");
     }
-    
 	(void)close(fd);
+	
+	/* log the response */
+    logger.state_code = h_res.http_status;
+    logger.content_length = h_res.content_length;
+    
+    (void)logging(&logger);
 }
 
 static void
@@ -579,7 +588,6 @@ send_err_and_exit(int cfd, int err_code)
 	extern struct set_logging logger;
     char resp_buf[HTTP_RESPONSE_MAX_LENGTH];
     size_t size;
-    ssize_t count;
     
     h_res.last_modified = time(NULL);
     h_res.content_length = 0;
