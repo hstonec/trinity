@@ -106,10 +106,10 @@ call_cgi(struct cgi_request *cgi_req,
 		jstr_concat(mv_SERVER_PORT, cgi_req->server_port);
 		env_list[6] = jstr_cstr(mv_SERVER_PORT);
 		
-		mv_SERVER_PROTOCOL = jstr_create("SERVER_PROTOCOL=HTTP/1.0");
+		mv_SERVER_PROTOCOL = jstr_create("SERVER_PROTOCOL=" HTTP_VERSION);
 		env_list[7] = jstr_cstr(mv_SERVER_PROTOCOL);
 		
-		mv_SERVER_SOFTWARE = jstr_create("SERVER_SOFTWARE=Trinity/1.0");
+		mv_SERVER_SOFTWARE = jstr_create("SERVER_SOFTWARE=" HTTP_SERVER_NAME);
 		env_list[8] = jstr_cstr(mv_SERVER_SOFTWARE);
 		
 		env_list[9] = NULL;

@@ -31,6 +31,9 @@
 #define HTTP_REQUEST_MAX_LENGTH 8192
 #define HTTP_RESPONSE_MAX_LENGTH 8192
 
+#define HTTP_VERSION "HTTP/1.0"
+#define HTTP_SERVER_NAME "Trinity/1.0"
+
 #define rfc1123_DATE_STR "%a, %d %b %Y %T GMT"
 
 struct http_request
