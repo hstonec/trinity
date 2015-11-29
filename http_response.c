@@ -39,24 +39,26 @@ response(struct http_response *response_info, char *resp_buf, size_t capacity, s
 	if (response_info->http_status == OK ||
 		response_info->http_status == Not_Modified) {
 		sprintf(buf,
-			"HTTP/%s %d %s\r\n"
+			"%s %d %s\r\n"
 			"Date: %s\r\n"
-			"Server: SWS\r\n"
+			"Server: %s\r\n"
 			"Last-Modified: %s\r\n"
 			"Content-Type: %s\r\n",
-			"1.0", response_info->http_status, status_phrase(response_info->http_status),
+			HTTP_VERSION, response_info->http_status, status_phrase(response_info->http_status),
 			timestr,
+			HTTP_SERVER_NAME,
 			lastmodstr,
 			get_content_type(response_info->file_path));
 	} else {
 		sprintf(buf,
-			"HTTP/%s %d %s\r\n"
+			"%s %d %s\r\n"
 			"Date: %s\r\n"
-			"Server: SWS\r\n"
+			"Server: %s\r\n"
 			"Last-Modified: %s\r\n"
 			"Content-Type: text/html\r\n",
-			"1.0", response_info->http_status, status_phrase(response_info->http_status),
+			HTTP_VERSION, response_info->http_status, status_phrase(response_info->http_status),
 			timestr,
+			HTTP_SERVER_NAME,
 			lastmodstr);
 	}
 	if (response_info->body_flag == 1 && response_info->http_status != Not_Modified) {
