@@ -67,7 +67,10 @@ struct set_logging
 int request(char *buf, struct http_request *request_info, struct set_logging *logging_info);	/* deal with http request */
 void clean_request(struct http_request *request_info);
 
-int response(struct http_response *response_info, char *resp_buf, size_t capacity, size_t *size);    /* deal with http response */
+/* deal with general http response */
+int response(struct http_response *response_info, char *resp_buf, size_t capacity, size_t *size);
+/* deal with cgi http response */
+int cgi_response(struct http_response *response_info, char *resp_buf, size_t capacity, size_t *size);
 
 /* logging will return the length function written
  * return 0 if error 
