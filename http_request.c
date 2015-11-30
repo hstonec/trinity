@@ -34,7 +34,7 @@ int htod(char hex1, char hex2);
 time_t set_date(char *request_val, struct http_request *request_info);
 char *split_str(char *source, char **rest);
 int check_version(char *http_version);
-
+int check_format(char *method);
 
 static char *wkday[] = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", NULL };
 static char *weekday[] = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", NULL };
@@ -66,8 +66,8 @@ int request(char *buf, struct http_request *request_info, struct set_logging *lo
 	ret = set_method(method, request_info);
 	if (ret)
 		return q_err;
-	/* http decoding */
-	
+	if (strcmp(request_head, "") == 0)
+		return 1;
 	/* process the following header fields */
 	while(1){
 		Header_Field = split_str(NULL, &request_head);
@@ -165,6 +165,10 @@ int set_method(char *method, struct http_request *request_info)
 	char *method_val;
 	char *http_version;
 	char *rest;
+	if (check_format(method)){
+		q_err = 1;
+		return 1;
+	}
 	method_type = strtok_r(method, " ", &rest);
 	method_val = strtok_r(NULL, " ", &rest);
 	(void)strtok_r(rest, "/", &http_version);
@@ -172,13 +176,15 @@ int set_method(char *method, struct http_request *request_info)
 	{
 		if (strcmp(method_type, "GET") == 0)
 			request_info->method_type = GET;
-		if (strcmp(method_type, "HEAD") == 0)
+		else if (strcmp(method_type, "HEAD") == 0)
 			request_info->method_type = HEAD;
-		if (strcmp(method_type, "POST") == 0)
+		else if (strcmp(method_type, "POST") == 0)
 			request_info->method_type = POST;
+		else{
+			q_err = 1;
+			return 1;
+		}
 		request_info->request_URL = http_decoding(request_info, method_val);
-		//request_info->request_URL = set_request(method_val);
-		//request_info->http_version = set_request(http_version);
 		if (check_version(http_version))
 			request_info->http_version = atof(http_version);
 		else{
@@ -481,8 +487,6 @@ int logging(struct set_logging *logging_info)
 	char receive_time[30];
 	int ret, len, total;
 	int fd = logging_info->fd;
-	if (logging_info->logging_flag == 0)
-		return 0;
 	ret = 0;
 	if (logging_info->client_ip == NULL || 
 		logging_info->content_length < 0 || 
@@ -537,6 +541,10 @@ char *split_str(char *source, char **rest)
 			*rest = source + i + 2;
 			return ret;
 		}
+		else if (source[i] == '\r'&&source[i + 1] != '\n')
+			return NULL;
+		else if (source[i] == '\n')
+			return NULL;
 	}
 	return "";
 }
@@ -570,6 +578,22 @@ int check_version(char *http_version)
 		}
 	}
 	if (digit_flag == 2)
+		return 1;
+	else
+		return 0;
+}
+/* check the format of Request-Line, return 1 if error */
+int check_format(char *method)
+{
+	int len = strlen(method);
+	int i;
+	int count_space = 0;
+	for (i = 0; i < len; i++)
+	{
+		if (method[i] == ' ')
+			count_space++;
+	}
+	if (count_space != 2)
 		return 1;
 	else
 		return 0;
