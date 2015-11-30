@@ -77,6 +77,39 @@ response(struct http_response *response_info, char *resp_buf, size_t capacity, s
 	return 0;
 }
 
+int
+cgi_response(struct http_response *response_info, char *resp_buf, size_t capacity, size_t *size)
+{
+	char buf[capacity];
+	char timestr[64];
+	char lastmodstr[64];
+	char entity_html[capacity];
+	time_t present;
+	int i = 0;
+
+	memset(entity_html, 0, sizeof(entity_html));
+	time(&present);
+	strftime(timestr, sizeof(timestr), rfc1123_DATE_STR, gmtime(&present));
+	strftime(lastmodstr, sizeof(lastmodstr), rfc1123_DATE_STR, gmtime(&response_info->last_modified));
+
+	sprintf(buf,
+		"%s %d %s\r\n"
+		"Date: %s\r\n"
+		"Server: %s\r\n"
+		"Last-Modified: %s\r\n",
+		HTTP_VERSION, response_info->http_status, status_phrase(response_info->http_status),
+		timestr,
+		HTTP_SERVER_NAME,
+		lastmodstr);
+	for (i = 0; i < strlen(buf); i ++) {
+		/* copy buf */
+		resp_buf[i] = buf[i];
+	}
+	/* return the size of buf*/
+	*size = strlen(buf);
+	return 0;
+}
+
 char*
 status_phrase(int code) {
 	/* get the status phrase thru status code */
