@@ -137,8 +137,7 @@ main(int argc, char *argv[])
 		so.fd_logfile = STDOUT_FILENO;
 	} else if (so.opt['l'] == TRUE) {
 		if ((fd = open(logfile, 
-			O_WRONLY | O_APPEND | O_CREAT,
-			S_IRUSR | S_IWUSR)) == -1) {
+			O_WRONLY | O_APPEND)) == -1) {
 			(void)fprintf(stderr,
 			  "%s: open '%s' failed: %s\n",
 			  getprogname(),
