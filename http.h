@@ -49,7 +49,7 @@ struct http_response
 
 struct set_logging
 {
-	int logging_flag;		/* set 1 if you don't want to use logging */
+	int logging_flag;		/* set 0 if you don't want to use logging */
 	int fd; 
 	char *first_line;	/* already set up in request */
 	char *client_ip;
