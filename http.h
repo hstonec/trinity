@@ -28,6 +28,13 @@
 #define rfc850_DATE			2
 #define asctime_DATE		3
 
+#define HTTP_REQUEST_MAX_LENGTH 8192
+#define HTTP_RESPONSE_MAX_LENGTH 8192
+
+#define HTTP_VERSION "HTTP/1.0"
+#define HTTP_SERVER_NAME "Trinity/1.0"
+
+#define rfc1123_DATE_STR "%a, %d %b %Y %T GMT"
 
 struct http_request
 {
@@ -42,18 +49,18 @@ struct http_response
 {
         time_t last_modified;
         char *file_path;
-        unsigned long content_length;
+        size_t content_length;
         int http_status;
         int body_flag;
 };
 
 struct set_logging
 {
-	int logging_flag;		/* set 0 if you don't want to use logging */
-	int fd; 
+	int fd;
 	char *first_line;	/* already set up in request */
 	char *client_ip;
 	int state_code;
+	int logging_flag;
 	size_t content_length;
 	time_t receive_time;/* already set up in request */
 };
@@ -61,9 +68,7 @@ struct set_logging
 int request(char *buf, struct http_request *request_info, struct set_logging *logging_info);	/* deal with http request */
 void clean_request(struct http_request *request_info);
 
-int response(struct http_response *response_info, char *resp_buf, int capacity, int *size);    /* deal with http response */
-char* status_phrase(int code);
-char* get_content_type(char* file_path);
+int response(struct http_response *response_info, char *resp_buf, size_t capacity, size_t *size);    /* deal with http response */
 
 /* logging will return the length function written
  * return 0 if error 
