@@ -90,14 +90,14 @@ char *http_decoding(struct http_request *request_info, char *http_url)
 {
 	/* if error, set q_err to 6*/
 	char *decoded_url;
-	int len = strlen(http_url) + 1;
+	int len = strlen(http_url);
 	int i = 0;
 	int j = 0;
 	char hex1;
 	char hex2;
 	int decimal_str;
 
-	decoded_url = (char *)malloc(sizeof(char)*len);
+	decoded_url = (char *)malloc(sizeof(char)*(len + 1));
 	if (decoded_url == NULL){
 		q_err = 7;
 		return NULL;
