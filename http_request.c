@@ -185,7 +185,7 @@ int set_method(char *method, struct http_request *request_info)
 			q_err = 1;
 			return 1;
 		}
-		if (strcmp(http_str, "HTTP") != 0){
+		if (strcmp(http_str, "HTTP") != 0 || method_val[0] != '/') {
 			q_err = 1;
 			return 1;
 		}
