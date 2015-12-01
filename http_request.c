@@ -487,6 +487,8 @@ int logging(struct set_logging *logging_info)
 	char receive_time[30];
 	int ret, len, total;
 	int fd = logging_info->fd;
+	if (logging_info->logging_flag == 0)
+		return 0;
 	ret = 0;
 	if (logging_info->client_ip == NULL || 
 		logging_info->content_length < 0 || 
