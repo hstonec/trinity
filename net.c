@@ -45,6 +45,7 @@ static void send_file(int, struct http_request *, JSTRING *);
 static void send_dirindex(int, JSTRING *, char *uri);
 static void send_err_and_exit(int, int);
 
+static int trim_uri(JSTRING *);
 static void verify_port(char *);
 static BOOL replace_userdir(JSTRING *);
 static void separate_query(char *, JSTRING **, JSTRING **);
@@ -211,7 +212,7 @@ do_http(struct swsopt *so, int cfd,
 		struct sockaddr *server,
 		char *server_port)
 {
-	int cgi_result;
+	int cgi_result, trim_result;
 	struct cgi_request cgi_req;
 	/* ipv6 length is enough for both type */
 	char server_ip[INET6_ADDRSTRLEN];
@@ -239,8 +240,14 @@ do_http(struct swsopt *so, int cfd,
 	    hr.method_type != GET)
 		send_err_and_exit(cfd, Not_Implemented);
 	
-	/* should verify path like ../../../.. ? */
+	/* separate url and query string */
 	separate_query(hr.request_URL, &url, &query);
+	
+	/* trim uri and verify if the actual file exceeds CWD */
+	trim_result = trim_uri(url);
+	if (trim_result != 0)
+		send_err_and_exit(cfd, trim_result);
+	
 	
     h_res.file_path = jstr_cstr(url);
     
@@ -621,6 +628,58 @@ get_ip(char *ip, struct sockaddr *addr)
 	
 	(void)inet_ntop(addr->sa_family, in_addr,
 					ip, INET6_ADDRSTRLEN);
+}
+
+static int 
+trim_uri(JSTRING *uri)
+{
+	size_t i;
+	JSTRING *temp, *last;
+	ARRAYLIST *list;
+	
+	list = arrlist_create();
+	
+	/* uri must start with '/' */
+	arrlist_add(list, jstr_create("/"));
+	
+	temp = jstr_create("");
+	for (i = 1; i < jstr_length(uri); i++) {
+		jstr_append(temp, jstr_charat(uri, i));
+		if (jstr_charat(uri, i) == '/' || 
+			i == jstr_length(uri) - 1) {
+			if (jstr_equals(temp, "..") == 0 ||
+				jstr_equals(temp, "../") == 0) {
+				
+				if (arrlist_size(list) > 1) {
+					last = (JSTRING *)arrlist_remove(list, 
+							arrlist_size(list) - 1);
+					jstr_free(last);
+				} else
+					return Forbidden;
+				
+				jstr_free(temp);
+			} else if (jstr_equals(temp, ".") == 0 ||
+					   jstr_equals(temp, "./") == 0 ||
+					   jstr_equals(temp, "/") == 0) {
+				jstr_free(temp);
+			} else {
+				arrlist_add(list, temp);
+			}
+			temp = jstr_create("");
+		}
+	}
+	jstr_free(temp);
+	
+	jstr_trunc(uri, jstr_length(uri), 0);
+	for (i = 0; i < arrlist_size(list); i++) {
+		temp = (JSTRING *)arrlist_get(list, i);
+		jstr_concat(uri, jstr_cstr(temp));
+		jstr_free(temp);
+	}
+		
+	arrlist_free(list);
+	
+	return 0;
 }
 
 static void 
