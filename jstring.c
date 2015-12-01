@@ -186,12 +186,12 @@ jstr_append(JSTRING *jstr, char c)
 }
 
 int
-jstr_equals(JSTRING *jstr1, JSTRING *jstr2)
+jstr_equals(JSTRING *jstr, char *str)
 {
-	check_ptr(jstr1);
-	check_ptr(jstr2);
+	check_ptr(jstr);
+	check_ptr(str);
 	
-	return strcmp(jstr_cstr(jstr1), jstr_cstr(jstr2));
+	return strcmp(jstr_cstr(jstr), str);
 }
 
 void
