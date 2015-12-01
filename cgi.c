@@ -120,7 +120,7 @@ call_cgi(struct cgi_request *cgi_req,
         h_res->body_flag = 0;
 
         size = 0;
-        (void)response(h_res, resp_buf, 
+        (void)cgi_response(h_res, resp_buf, 
                        HTTP_RESPONSE_MAX_LENGTH, &size);
         write_socket(cgi_req->cfd, resp_buf, size);
         

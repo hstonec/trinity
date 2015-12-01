@@ -226,10 +226,13 @@ do_http(struct swsopt *so, int cfd,
 	
     logger.client_ip = client_ip;
     logger.fd = so->fd_logfile;
-    
+    logger.logging_flag = so->opt['l'];
+	
 	read_http_header(cfd, &hr, &logger);
     
-	/* verify http version */
+	/* verify if http version is supported */
+	if (hr.http_version > HTTP_IMPL_VERSION)
+		send_err_and_exit(cfd, Not_Implemented);
 	
 	/* Check if the request method is not HEAD or GET */
 	if (hr.method_type != HEAD &&
