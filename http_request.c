@@ -164,6 +164,7 @@ int set_method(char *method, struct http_request *request_info)
 	char *method_type;
 	char *method_val;
 	char *http_version;
+	char *http_str;
 	char *rest;
 	if (check_format(method)){
 		q_err = 1;
@@ -171,8 +172,8 @@ int set_method(char *method, struct http_request *request_info)
 	}
 	method_type = strtok_r(method, " ", &rest);
 	method_val = strtok_r(NULL, " ", &rest);
-	(void)strtok_r(rest, "/", &http_version);
-	if (method_type&&method_val&&http_version)
+	http_str = strtok_r(rest, "/", &http_version);
+	if (method_type&&method_val&&http_version&&http_str)
 	{
 		if (strcmp(method_type, "GET") == 0)
 			request_info->method_type = GET;
@@ -181,6 +182,10 @@ int set_method(char *method, struct http_request *request_info)
 		else if (strcmp(method_type, "POST") == 0)
 			request_info->method_type = POST;
 		else{
+			q_err = 1;
+			return 1;
+		}
+		if (strcmp(http_str, "HTTP") != 0){
 			q_err = 1;
 			return 1;
 		}
