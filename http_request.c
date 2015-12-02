@@ -122,10 +122,10 @@ int htod(char hex1, char hex2)
 	int ret = 0;
 	char upper_c;
 	if (isalnum((int)hex1) && isalnum((int)hex2)){
-		if (isdigit(hex1))
+		if (isdigit((int)hex1))
 			ret += atoi(&hex1) * 16;
 		else if (isalpha((int)hex1)){
-			upper_c = toupper(hex1);
+			upper_c = toupper((int)hex1);
 			if (upper_c >= 'A'&&upper_c <= 'F')
 				ret += (upper_c - 'A' + 10) * 16;
 			else
@@ -137,7 +137,7 @@ int htod(char hex1, char hex2)
 		if (isdigit((int)hex2))
 			ret += atoi(&hex2);
 		else if (isalpha((int)hex2)){
-			upper_c = toupper(hex2);
+			upper_c = toupper((int)hex2);
 			if (upper_c >= 'A'&&upper_c <= 'F')
 				ret += upper_c - 'A' + 10;
 			else
