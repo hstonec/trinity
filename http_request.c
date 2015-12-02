@@ -1,13 +1,5 @@
-#include <arpa/inet.h>
-#include <sys/file.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <bsd/stdlib.h>
-#include <netinet/in.h>
-
 #include <ctype.h>
 #include <errno.h>
-#include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -129,10 +121,10 @@ int htod(char hex1, char hex2)
 {
 	int ret = 0;
 	char upper_c;
-	if (isalnum(hex1) && isalnum(hex2)){
+	if (isalnum((int)hex1) && isalnum((int)hex2)){
 		if (isdigit(hex1))
 			ret += atoi(&hex1) * 16;
-		else if (isalpha(hex1)){
+		else if (isalpha((int)hex1)){
 			upper_c = toupper(hex1);
 			if (upper_c >= 'A'&&upper_c <= 'F')
 				ret += (upper_c - 'A' + 10) * 16;
@@ -142,9 +134,9 @@ int htod(char hex1, char hex2)
 		else
 			return -1;
 
-		if (isdigit(hex2))
+		if (isdigit((int)hex2))
 			ret += atoi(&hex2);
-		else if (isalpha(hex2)){
+		else if (isalpha((int)hex2)){
 			upper_c = toupper(hex2);
 			if (upper_c >= 'A'&&upper_c <= 'F')
 				ret += upper_c - 'A' + 10;
@@ -443,7 +435,7 @@ int check_num(char *check_val)
 	int i = 0;
 	int ret = 1;
 	for (i = 0; i < strlen(check_val); i++)
-		isdigit(check_val[i]) > 0 ? (ret = ret * 1) : (ret = ret * 0);
+		isdigit((int)check_val[i]) > 0 ? (ret = ret * 1) : (ret = ret * 0);
 	return ret;
 }
 
@@ -503,7 +495,7 @@ int logging(struct set_logging *logging_info)
 		return -1;
 	if (!strftime(receive_time, 30, "%a, %d %b %Y %H:%M:%S GMT", gmtime(&logging_info->receive_time)))
 		return 0;
-	len = snprintf(output_buf, LOGGING_BUF, "%s %s \"%s\" %d %ld\n",
+	len = snprintf(output_buf, LOGGING_BUF, "%s %s \"%s\" %d %zu\n",
 		logging_info->client_ip,
 		receive_time,
 		logging_info->first_line,
@@ -569,7 +561,7 @@ int check_version(char *http_version)
 	{
 		if (dot_flag)
 		{
-			if (!isdigit(http_version[i]))
+			if (!isdigit((int)http_version[i]))
 				return 0;
 			else
 				digit_flag = 2;
@@ -578,7 +570,7 @@ int check_version(char *http_version)
 		{
 			if (http_version[i] == '.'&&digit_flag == 1)
 				dot_flag = 1;
-			if (!isdigit(http_version[i]) && http_version[i] != '.')
+			if (!isdigit((int)http_version[i]) && http_version[i] != '.')
 				return 0;
 			else
 				digit_flag = 1;
