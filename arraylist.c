@@ -250,7 +250,7 @@ check_index(ARRAYLIST *list, size_t index)
 {
 	if (index >= list->size) {
 		(void)fprintf(stderr, 
-		      "arraylist: index [%ld] out of range [0, %ld]\n",
+		      "arraylist: index [%zu] out of range [0, %zu]\n",
 			  index,
 			  list->size - 1);
 		exit(EXIT_FAILURE);

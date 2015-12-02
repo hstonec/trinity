@@ -9,7 +9,9 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-#include <bsd/stdlib.h>
+#ifdef LINUX
+	#include <bsd/stdlib.h>
+#endif
 
 #include <ctype.h>
 #include <dirent.h>
@@ -689,7 +691,7 @@ verify_port(char *port)
 	unsigned long int num;
 	
 	for (i = 0; i < strlen(port); i++)
-		if (!isdigit(port[i])) {
+		if (!isdigit((int)port[i])) {
 			fprintf(stderr, 
 				"%s: port must be a positive integer\n", 
 				getprogname());

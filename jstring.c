@@ -129,7 +129,7 @@ void jstr_insert(JSTRING *jstr, size_t index, char *str)
 	
 	if (index > jstr->length) {
 		(void)fprintf(stderr, 
-		      "jstring: index [%ld] out of range [0, %ld]\n",
+		      "jstring: index [%zu] out of range [0, %zu]\n",
 			  index,
 			  jstr->length);
 		exit(EXIT_FAILURE);
@@ -252,7 +252,7 @@ check_index(JSTRING *jstr, size_t index)
 {
 	if (index >= jstr->length) {
 		(void)fprintf(stderr, 
-		      "jstring: index [%ld] out of range [0, %ld]\n",
+		      "jstring: index [%zu] out of range [0, %zu]\n",
 			  index,
 			  jstr->length - 1);
 		exit(EXIT_FAILURE);

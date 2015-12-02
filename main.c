@@ -4,7 +4,9 @@
  * connecting client and print out on stdout that 
  * line prefixed with the remote client's IP address.
  */
-#include <bsd/stdlib.h>
+#ifdef LINUX
+	#include <bsd/stdlib.h>
+#endif
 
 #include <sys/types.h>
 #include <sys/stat.h>

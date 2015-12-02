@@ -1,12 +1,11 @@
 CC=cc
 PROG=sws
-CFLAGS=-DLINUX -Wall -g
+CFLAGS=-DNETBSD -Wall -g
 
 all: ${PROG}
 
 ${PROG}: main.c net.o cgi.o http_request.o http_response.o jstring.o arraylist.o
-	$(CC) ${CFLAGS} -o ${PROG} main.c net.o cgi.o http_request.o http_response.o jstring.o arraylist.o \
-	-lbsd
+	    $(CC) ${CFLAGS} -o ${PROG} main.c net.o cgi.o http_request.o http_response.o jstring.o arraylist.o
 
 net.o: net.c net.h sws.h macros.h http.h
 	$(CC) ${CFLAGS} -c net.c
