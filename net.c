@@ -193,9 +193,23 @@ start_server(struct swsopt *so)
 					_exit(EXIT_SUCCESS);
 				}	
 			}
-		} else { // should be modified to use child process
-			do_http(so, cfd, client, server, server_port);
-			close(cfd);
+		} else {
+			/* 
+			 * If -d is set, the server will only create one child
+			 * process to serve the request. The server won't accept
+			 * another request until this request is finished.
+			 */
+			if ((pid = fork()) == -1)
+				perror_exit("fork first child error: ");
+			
+			if (pid > 0) {
+				close(cfd);
+				(void)wait(NULL);
+			} else {
+				do_http(so, cfd, client, server, server_port);
+				close(cfd);
+				_exit(EXIT_SUCCESS);
+			}
 		}
 			
 		
