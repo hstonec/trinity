@@ -44,10 +44,8 @@ response(struct http_response *response_info, char *resp_buf, size_t capacity, s
 			HTTP_VERSION, response_info->http_status, status_phrase(response_info->http_status),
 			timestr,
 			HTTP_SERVER_NAME);
-	}
-
-	/* only 200 will get the green light*/
-	if (response_info->http_status == OK) {
+	} else if (response_info->http_status == OK) {
+		/* only 200 will get the green light*/
 		sprintf(buf,
 			"%s %d %s\r\n"
 			"Date: %s\r\n"
