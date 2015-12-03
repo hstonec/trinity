@@ -16,6 +16,8 @@
 
 #include "http.h"
 
+#define rfc1123_DATE_STR "%a, %d %b %Y %T GMT"
+
 char* status_phrase(int code);
 char* get_content_type(char* file_path);
 
