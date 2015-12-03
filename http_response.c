@@ -19,24 +19,27 @@
 char* status_phrase(int code);
 char* get_content_type(char* file_path);
 
+/* This function processes http response header fields.
+ * This function will process http_response structure from net.c
+ * and generate string buffer as a header, This function will
+ * return 0.
+ */
 int
 response(struct http_response *response_info, char *resp_buf, size_t capacity, size_t *size)
 {
 	char buf[capacity];
-	char timestr[64];
-	char lastmodstr[64];
-	char entity_html[capacity];
+	char timestr[64], lastmodstr[64];
 	time_t present;
 	char len[32];
 	int i = 0;
 
-	memset(entity_html, 0, sizeof(entity_html));
+	/* process the current time and last modified time */
 	time(&present);
 	strftime(timestr, sizeof(timestr), rfc1123_DATE_STR, gmtime(&present));
 	strftime(lastmodstr, sizeof(lastmodstr), rfc1123_DATE_STR, gmtime(&response_info->last_modified));
 
-	/* 304 no content type and length*/
 	if (response_info->http_status == Not_Modified) {
+		/* 304 header, without content type and length */
 		sprintf(buf,
 			"%s %d %s\r\n"
 			"Date: %s\r\n"
@@ -45,7 +48,7 @@ response(struct http_response *response_info, char *resp_buf, size_t capacity, s
 			timestr,
 			HTTP_SERVER_NAME);
 	} else if (response_info->http_status == OK) {
-		/* only 200 will get the green light*/
+		/* 200 OK */
 		sprintf(buf,
 			"%s %d %s\r\n"
 			"Date: %s\r\n"
@@ -58,6 +61,7 @@ response(struct http_response *response_info, char *resp_buf, size_t capacity, s
 			lastmodstr,
 			get_content_type(response_info->file_path));
 	} else {
+		/* return type as text/html */
 		sprintf(buf,
 			"%s %d %s\r\n"
 			"Date: %s\r\n"
@@ -70,9 +74,11 @@ response(struct http_response *response_info, char *resp_buf, size_t capacity, s
 			lastmodstr);
 	}
 	if (response_info->body_flag == 1 && response_info->http_status != Not_Modified) {
+		/* append a content length and a ending CRLF */
 		sprintf(len, "Content-Length: %zu\r\n\r\n", response_info->content_length);
 		strncat(buf, len, strlen(len));
 	} else {
+		/* append a ending CRLF */
 		sprintf(len, "\r\n");
 		strncat(buf, len, strlen(len));
 	}
@@ -89,13 +95,11 @@ int
 cgi_response(struct http_response *response_info, char *resp_buf, size_t capacity, size_t *size)
 {
 	char buf[capacity];
-	char timestr[64];
-	char lastmodstr[64];
-	char entity_html[capacity];
+	char timestr[64], lastmodstr[64];
 	time_t present;
 	int i = 0;
 
-	memset(entity_html, 0, sizeof(entity_html));
+	/* process the current time and last modified time */
 	time(&present);
 	strftime(timestr, sizeof(timestr), rfc1123_DATE_STR, gmtime(&present));
 	strftime(lastmodstr, sizeof(lastmodstr), rfc1123_DATE_STR, gmtime(&response_info->last_modified));
