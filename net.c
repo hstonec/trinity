@@ -412,6 +412,12 @@ send_file(int cfd, struct http_request *hr, JSTRING *path)
         
         
         write_socket(cfd, resp_buf, size);
+        
+        /* log the response */
+        logger.state_code = h_res.http_status;
+        logger.content_length = h_res.content_length;
+
+        (void)logging(&logger);
 		return;
 	}
 	
@@ -750,10 +756,11 @@ replace_userdir(JSTRING *path)
 	
 	user = jstr_create("/home/");
 	for (i = 2; 
-		 jstr_charat(path, i) != '/' && i < jstr_length(path);
+		 i < jstr_length(path) && jstr_charat(path, i) != '/';
 		 i++)
 		jstr_append(user, jstr_charat(path, i));
 	jstr_concat(user, "/sws");
+    
 	if (i >= jstr_length(path) || jstr_charat(path, i) != '/')
 		jstr_append(user, '/');
 	
