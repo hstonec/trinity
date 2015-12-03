@@ -238,8 +238,6 @@ char *set_request(char *request_val)
 /* set tm from rfc850 format date, return 1 if error */
 int set_rfc850(struct tm *http_date, char *request_val)
 {
-	time_t t_now = time(NULL);
-	struct tm *gmt_now = gmtime(&t_now);
 	char *rest;
 	char *week;
 	char *hour;
@@ -270,7 +268,7 @@ int set_rfc850(struct tm *http_date, char *request_val)
 			http_date->tm_hour = atoi(hour);
 			http_date->tm_min = atoi(minute);
 			http_date->tm_sec = atoi(second);
-			if (atoi(year) + 100 <= gmt_now->tm_year)
+			if (atoi(year) <= 50)
 				http_date->tm_year = atoi(year) + 100;
 			else
 				http_date->tm_year = atoi(year);
