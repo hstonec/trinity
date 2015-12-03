@@ -202,7 +202,9 @@ int process_header(char *Header_Field, struct http_request *request_info)
 {
 	char *header;
 	char *header_value;
+	char *rest;
 	header = strtok_r(Header_Field, ":", &header_value);
+	header_value += 1;
 	if (header == NULL&&header_value == NULL){
 		q_err = 2;
 		return 2;
