@@ -35,9 +35,19 @@ response(struct http_response *response_info, char *resp_buf, size_t capacity, s
 	strftime(timestr, sizeof(timestr), rfc1123_DATE_STR, gmtime(&present));
 	strftime(lastmodstr, sizeof(lastmodstr), rfc1123_DATE_STR, gmtime(&response_info->last_modified));
 
-	/* only 200 and 304 will get the green light*/
-	if (response_info->http_status == OK ||
-		response_info->http_status == Not_Modified) {
+	/* 304 no content type and length*/
+	if (response_info->http_status == Not_Modified) {
+		sprintf(buf,
+			"%s %d %s\r\n"
+			"Date: %s\r\n"
+			"Server: %s\r\n",
+			HTTP_VERSION, response_info->http_status, status_phrase(response_info->http_status),
+			timestr,
+			HTTP_SERVER_NAME);
+	}
+
+	/* only 200 will get the green light*/
+	if (response_info->http_status == OK) {
 		sprintf(buf,
 			"%s %d %s\r\n"
 			"Date: %s\r\n"
