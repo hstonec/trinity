@@ -313,7 +313,6 @@ do_http(struct swsopt *so, int cfd,
 			send_file(cfd, &hr, url);
 	}
 	
-	/* If If-Modified-Since is set, detect */
 	jstr_free(url);
 	jstr_free(query);
     
@@ -396,7 +395,7 @@ send_file(int cfd, struct http_request *hr, JSTRING *path)
 	/* 1 means has If-Modified-Since header */
 	need_send = TRUE;
 	if (hr->if_modified_flag == 1 &&
-	    difftime(stat_buf.st_mtime, hr->if_modified_since) >= 0)
+	    difftime(stat_buf.st_mtime, hr->if_modified_since) <= 0)
 		need_send = FALSE;
 	
 	if (hr->method_type == HEAD) {
