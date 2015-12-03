@@ -48,11 +48,11 @@ struct http_request
 
 struct http_response
 {
-        time_t last_modified;
-        char *file_path;
-        size_t content_length;
-        int http_status;
-        int body_flag;
+    time_t last_modified;
+    char *file_path;
+    size_t content_length;
+    int http_status;
+    int body_flag;
 };
 
 struct set_logging
