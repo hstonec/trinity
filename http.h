@@ -35,6 +35,13 @@
 #define HTTP_VERSION "HTTP/1.0"
 #define HTTP_SERVER_NAME "Trinity/1.0"
 
+/*
+ * http_request
+ * This structure provides a interface between main program and http
+ * request processing part. The request(1) function will fill this
+ * structure after processing the http request message.
+ * clean_request(1) needs to be called to release the memory.
+ */
 struct http_request
 {
 	int method_type;
@@ -43,7 +50,12 @@ struct http_request
 	int if_modified_flag;  /* 1 for yes */
 	time_t if_modified_since;
 };
-
+/*
+ * http_response
+ * This structure provides a interface between main program and http
+ * response processing part. The response(4) function generates http
+ * response header according to this structure.
+ */
 struct http_response
 {
     time_t last_modified;
@@ -52,7 +64,12 @@ struct http_response
     int http_status;
     int body_flag;
 };
-
+/*
+ * set_logging
+ * This structure contains all messages that need to be logged to
+ * file. The logging(1) function will do logging according to this
+ * structure. clean_logging(1) needs to be called to release memory.
+ */
 struct set_logging
 {
 	int fd;
@@ -63,14 +80,24 @@ struct set_logging
 	size_t content_length;
 	time_t receive_time;/* already set up in request */
 };
-
-int request(char *buf, struct http_request *request_info, struct set_logging *logging_info);	/* deal with http request */
+/* 
+ * request(3) processes http request line and request headers,
+ * if there is syntax problem in the http request message, it 
+ * will return larger than 0. This function will fill http request
+ * information to the http_request structure and the set_logging 
+ * structure.
+ */
+int request(char *buf, struct http_request *request_info, 
+		struct set_logging *logging_info);
+/* release the memory of http_requst */ 
 void clean_request(struct http_request *request_info);
 
 /* deal with general http response */
-int response(struct http_response *response_info, char *resp_buf, size_t capacity, size_t *size);
+int response(struct http_response *response_info, char *resp_buf, 
+		size_t capacity, size_t *size);
 /* deal with cgi http response */
-int cgi_response(struct http_response *response_info, char *resp_buf, size_t capacity, size_t *size);
+int cgi_response(struct http_response *response_info, char *resp_buf, 
+		size_t capacity, size_t *size);
 
 /* logging will return the length function written
  * return 0 if error 
@@ -79,4 +106,5 @@ int cgi_response(struct http_response *response_info, char *resp_buf, size_t cap
  */
 int logging(struct set_logging *logging_info);
 void clean_logging(struct set_logging *logging_info);
+
 #endif

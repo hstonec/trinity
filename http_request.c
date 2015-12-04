@@ -32,14 +32,16 @@ static char *wkday[] = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", NULL }
 static char *weekday[] = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", NULL };
 static char *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", NULL };
 
-int q_err;
+int q_err; /* error number for following function to return */
 
 /* This function processes http request header fields.
  * This function will set values for http_request structure
  * and set_logging structure to communicate with other functions
  * This function will return 0 if succeed, larger than 0 if error.
  */
-int request(char *buf, struct http_request *request_info, struct set_logging *logging_info)
+int 
+request(char *buf, struct http_request *request_info, 
+		struct set_logging *logging_info)
 {
 	char *request_head = buf;
 	char *Header_Field;
@@ -48,7 +50,6 @@ int request(char *buf, struct http_request *request_info, struct set_logging *lo
 	q_err = 0;
 	/* process the first line of http request */
 	method = split_str(NULL, &request_head);
-	//method = strtok_r(NULL, "\r\n", &request_head);
 	if (method == NULL)
 		return 1;
 	/* set logging information */
@@ -63,22 +64,19 @@ int request(char *buf, struct http_request *request_info, struct set_logging *lo
 	/* process the following header fields */
 	while(1){
 		Header_Field = split_str(NULL, &request_head);
-		//Header_Field = strtok_r(NULL, "\r\n", &request_head);
 		if (Header_Field == NULL)
 			return 1;
 		if (strcmp(Header_Field, "") == 0)
 			break;/* end of http request */
-
 		ret = process_header(Header_Field, request_info);
 		if (ret > 0)
 			return q_err;
 	}
-
 	return q_err;
 }
-
 /* http decoding */
-char *http_decoding(struct http_request *request_info, char *http_url)
+char *
+http_decoding(struct http_request *request_info, char *http_url)
 {
 	/* if error, set q_err to 6*/
 	char *decoded_url;
@@ -95,7 +93,6 @@ char *http_decoding(struct http_request *request_info, char *http_url)
 		return NULL;
 	}
 	decoded_url[len] = '\0';
-
 	for (i = 0, j = 0; i < len; i++, j++)
 	{
 		if (http_url[j] == '%'){
@@ -117,10 +114,12 @@ char *http_decoding(struct http_request *request_info, char *http_url)
 }
 
 /* hex to decimal */
-int htod(char hex1, char hex2)
+int 
+htod(char hex1, char hex2)
 {
 	int ret = 0;
 	char upper_c;
+	/* check if the hex1 and hex2 is a hex */
 	if (isalnum((int)hex1) && isalnum((int)hex2)){
 		if (isdigit((int)hex1))
 			ret += atoi(&hex1) * 16;
@@ -131,9 +130,9 @@ int htod(char hex1, char hex2)
 			else
 				return -1;
 		}
-		else
+		else{
 			return -1;
-
+		}
 		if (isdigit((int)hex2))
 			ret += atoi(&hex2);
 		else if (isalpha((int)hex2)){
@@ -143,15 +142,17 @@ int htod(char hex1, char hex2)
 			else
 				return -1;
 		}
-		else
+		else{
 			return -1;
+		}
 		return ret;
 	}
 	return -1;
 }
 
 /* set http method to http_request, return 1 if error */
-int set_method(char *method, struct http_request *request_info)
+int 
+set_method(char *method, struct http_request *request_info)
 {
 	char *method_type;
 	char *method_val;
@@ -181,6 +182,7 @@ int set_method(char *method, struct http_request *request_info)
 			q_err = 1;
 			return 1;
 		}
+		/* decoding */
 		request_info->request_URL = http_decoding(request_info, method_val);
 		if (check_version(http_version))
 			request_info->http_version = atof(http_version);
@@ -194,11 +196,13 @@ int set_method(char *method, struct http_request *request_info)
 	return 1;
 }
 
-/* process http request header field 
- * split header and value
- * return 2 if error 
+/* 
+ * Process http request headers. This function will split one header to 
+ * header field and header value. Ignore header field if it is not 
+ * If-Modified-Since. Return 2 if error and 0 if succeed.
  */
-int process_header(char *Header_Field, struct http_request *request_info)
+int 
+process_header(char *Header_Field, struct http_request *request_info)
 {
 	char *header;
 	char *header_value;
@@ -223,8 +227,9 @@ int process_header(char *Header_Field, struct http_request *request_info)
 	return 0;
 }
 
-/* set string request value, return null if error */
-char *set_request(char *request_val)
+/* set string request value, return the request type and null if error */
+char *
+set_request(char *request_val)
 {
 	char *request_type;
 	request_type = (char *)malloc((strlen(request_val) + 1)*sizeof(char));
@@ -236,7 +241,8 @@ char *set_request(char *request_val)
 }
 
 /* set tm from rfc850 format date, return 1 if error */
-int set_rfc850(struct tm *http_date, char *request_val)
+int 
+set_rfc850(struct tm *http_date, char *request_val)
 {
 	char *rest;
 	char *week;
@@ -263,7 +269,8 @@ int set_rfc850(struct tm *http_date, char *request_val)
 			return 3;
 		if ((n_month = get_datenum(months, month)) == -1)
 			return 3;
-		if (check_num(day) && check_num(year) && check_num(hour) && check_num(minute) && check_num(second))
+		if (check_num(day) && check_num(year) && check_num(hour) && 
+				check_num(minute) && check_num(second))
 		{
 			http_date->tm_hour = atoi(hour);
 			http_date->tm_min = atoi(minute);
@@ -285,7 +292,8 @@ int set_rfc850(struct tm *http_date, char *request_val)
 }
 
 /* set tm from rfc1123 format date, return 1 if error */
-int set_rfc1123(struct tm *http_date, char *request_val)
+int 
+set_rfc1123(struct tm *http_date, char *request_val)
 {
 	char *rest;
 	char *week;
@@ -311,7 +319,8 @@ int set_rfc1123(struct tm *http_date, char *request_val)
 			return 4;
 		if ((n_month = get_datenum(months, month)) == -1)
 			return 4;
-		if (check_num(day) && check_num(year) && check_num(hour) && check_num(minute) && check_num(second))
+		if (check_num(day) && check_num(year) && check_num(hour) && 
+				check_num(minute) && check_num(second))
 		{
 			http_date->tm_hour = atoi(hour);
 			http_date->tm_min = atoi(minute);
@@ -330,7 +339,8 @@ int set_rfc1123(struct tm *http_date, char *request_val)
 }
 
 /* set tm from asctime format date, return 1 if error */
-int set_asctime(struct tm *http_date, char *request_val)
+int 
+set_asctime(struct tm *http_date, char *request_val)
 {
 	char *rest;
 	char *week;
@@ -357,7 +367,8 @@ int set_asctime(struct tm *http_date, char *request_val)
 			return 5;
 		if ((n_month = get_datenum(months, month)) == -1)
 			return 5;
-		if (check_num(day) && check_num(year) && check_num(hour) && check_num(minute) && check_num(second))
+		if (check_num(day) && check_num(year) && check_num(hour) && 
+				check_num(minute) && check_num(second))
 		{
 			http_date->tm_hour = atoi(hour);
 			http_date->tm_min = atoi(minute);
@@ -385,7 +396,8 @@ Monday, 02-Jun-82 23:59:59 GMT
 asctime-date   = wkday SP date3 SP time SP 4DIGIT
 Mon Jun  2 23:59:59 1982
 */
-time_t set_date(char *request_val, struct http_request *request_info)
+time_t 
+set_date(char *request_val, struct http_request *request_info)
 {
 	putenv("TZ=GMT");
 	tzset();
@@ -413,7 +425,8 @@ time_t set_date(char *request_val, struct http_request *request_info)
 }
 
 /* transform header to category number, return -1 if error */
-int to_num(char *header)
+int 
+to_num(char *header)
 {
 	char *hf_list[] = {
 		"If-Modified-Since"
@@ -429,7 +442,8 @@ int to_num(char *header)
 }
 
 /* if check_val is a number string, return 1 , else 0*/
-int check_num(char *check_val)
+int 
+check_num(char *check_val)
 {
 	int i = 0;
 	int ret = 1;
@@ -439,7 +453,8 @@ int check_num(char *check_val)
 }
 
 /* get the index num of month and week, return -1 if error */
-int get_datenum(char *date_list[], char *sub)
+int 
+get_datenum(char *date_list[], char *sub)
 {
 	int i = 0;
 	for (i = 0; date_list[i] != NULL; i++)
@@ -449,7 +464,8 @@ int get_datenum(char *date_list[], char *sub)
 }
 
 /* check tm value, return 1 if there is an error */
-int check_tm(struct tm *http_data)
+int 
+check_tm(struct tm *http_data)
 {
 	if (http_data->tm_hour>23 && http_data->tm_hour < 0)
 		return 1;
@@ -464,12 +480,11 @@ int check_tm(struct tm *http_data)
 	return 0;
 }
 
-void clean_request(struct http_request *request_info)
+void 
+clean_request(struct http_request *request_info)
 {
 	free(request_info->request_URL);
 	request_info->request_URL = NULL;
-	//free(request_info->http_version);
-	//request_info->http_version = NULL;
 }
 
 /* Logging writes logging information to logging file.
@@ -477,7 +492,8 @@ void clean_request(struct http_request *request_info)
  * If succeed, logging will return the length written to 
  * logging file.
  */
-int logging(struct set_logging *logging_info)
+int 
+logging(struct set_logging *logging_info)
 {
 	char output_buf[LOGGING_BUF];
 	char receive_time[30];
@@ -492,7 +508,8 @@ int logging(struct set_logging *logging_info)
 		logging_info->receive_time < 0 || 
 		logging_info->state_code < 0)
 		return -1;
-	if (!strftime(receive_time, 30, "%a, %d %b %Y %H:%M:%S GMT", gmtime(&logging_info->receive_time)))
+	if (!strftime(receive_time, 30, "%a, %d %b %Y %H:%M:%S GMT", 
+				gmtime(&logging_info->receive_time)))
 		return 0;
 	len = snprintf(output_buf, LOGGING_BUF, "%s %s \"%s\" %d %zu\n",
 		logging_info->client_ip,
@@ -516,13 +533,19 @@ int logging(struct set_logging *logging_info)
 		return 0;
 }
 
-void clean_logging(struct set_logging *logging_info)
+void 
+clean_logging(struct set_logging *logging_info)
 {
 	free(logging_info->first_line);
 	logging_info->first_line = NULL;
 }
 
-char *split_str(char *source, char **rest)
+/* This function will split http headers by \r\n. And this function 
+ * can check the format of http request. Return EMPTY "" if it is the 
+ * end of request. Return NULL if it is a bad request.
+ */
+char *
+split_str(char *source, char **rest)
 {
 	char *ret;
 	if (source == NULL)
@@ -547,10 +570,9 @@ char *split_str(char *source, char **rest)
 	return "";
 }
 
-/* check if the http version is a proper formatted string 
- * return 1 if correct 
- */
-int check_version(char *http_version)
+/* check if a http version is correct http version. Return 1 if error. */
+int 
+check_version(char *http_version)
 {
 	int len = strlen(http_version);
 	int i, dot_flag, digit_flag;
@@ -581,7 +603,8 @@ int check_version(char *http_version)
 		return 0;
 }
 /* check the format of Request-Line, return 1 if error */
-int check_format(char *method)
+int 
+check_format(char *method)
 {
 	int len = strlen(method);
 	int i;
