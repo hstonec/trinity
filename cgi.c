@@ -1,3 +1,7 @@
+/*
+ * This program contains the code to deal with
+ * cgi request.
+ */
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -17,6 +21,7 @@
 #include "cgi.h"
 
 static void alarm_handler(int);
+static int separate_pathinfo(JSTRING *, JSTRING **, JSTRING **);
 static BOOL is_regular_file(char *);
 static JSTRING *get_parent(JSTRING *);
 
@@ -25,19 +30,28 @@ static pid_t cgi_pid;
 static void convert_request_method(int , char *);
 static void write_socket(int, char *, size_t);
 
+/*
+ * Ths main function to be used to handle CGI
+ * request. It checks the argument of CGI request
+ * and invoke the specific CGI program and send
+ * part of the http response header. 
+ */
 int
 call_cgi(struct cgi_request *cgi_req,
          struct http_response *h_res)
 {
 	extern pid_t cgi_pid;
 	pid_t pid;
-	char *env_list[10];
+	char *env_list[11];
 	char request_method[5];
     char resp_buf[HTTP_RESPONSE_MAX_LENGTH];
     size_t size;
-    
+	int sep_result;
+    JSTRING *abs_path, *path_info;
+	
 	JSTRING *cwd;
 	JSTRING *mv_GATEWAY_INTERFACE;
+	JSTRING *mv_PATH_INFO;
 	JSTRING *mv_QUERY_STRING;
 	JSTRING *mv_REMOTE_ADDR;
 	JSTRING *mv_REQUEST_METHOD;
@@ -47,19 +61,25 @@ call_cgi(struct cgi_request *cgi_req,
 	JSTRING *mv_SERVER_PROTOCOL;
 	JSTRING *mv_SERVER_SOFTWARE;
 	/* 
-	 * remove /cgi-bin from the path and 
+	 * remove /cgi-bin from the uri, then separate
+	 * PATH_INFO and the original uri, and
 	 * convert it to absolute path according
 	 * to cgi_dir.
 	 */
-	jstr_trunc(cgi_req->path, 8, jstr_length(cgi_req->path) - 8);
-	jstr_insert(cgi_req->path, 0, jstr_cstr(cgi_req->cgi_dir));
+	jstr_trunc(cgi_req->uri, 8, jstr_length(cgi_req->uri) - 8);
+	
+	sep_result = separate_pathinfo(cgi_req->uri, &abs_path, &path_info);
+	if (sep_result != 0)
+		return sep_result;
+	
+	jstr_insert(abs_path, 0, jstr_cstr(cgi_req->cgi_dir));
 	
 	/* check if file is a regular file */
-	if (is_regular_file(jstr_cstr(cgi_req->path)) == FALSE)
+	if (is_regular_file(jstr_cstr(abs_path)) == FALSE)
 		return Not_Found;
 	
 	/* check if file is executable */
-	if (access(jstr_cstr(cgi_req->path), X_OK)) {
+	if (access(jstr_cstr(abs_path), X_OK)) {
 		if (errno == ENOENT)
 			return Not_Found;
 		else
@@ -95,7 +115,7 @@ call_cgi(struct cgi_request *cgi_req,
 		env_list[3] = jstr_cstr(mv_REQUEST_METHOD);
 		
 		mv_SCRIPT_NAME = jstr_create("SCRIPT_NAME=");
-		jstr_concat(mv_SCRIPT_NAME, jstr_cstr(cgi_req->path));
+		jstr_concat(mv_SCRIPT_NAME, jstr_cstr(abs_path));
 		env_list[4] = jstr_cstr(mv_SCRIPT_NAME);
 		
 		mv_SERVER_NAME = jstr_create("SERVER_NAME=");
@@ -112,7 +132,15 @@ call_cgi(struct cgi_request *cgi_req,
 		mv_SERVER_SOFTWARE = jstr_create("SERVER_SOFTWARE=" HTTP_SERVER_NAME);
 		env_list[8] = jstr_cstr(mv_SERVER_SOFTWARE);
 		
-		env_list[9] = NULL;
+		if (jstr_length(path_info) == 0)
+			env_list[9] = NULL;
+		else {
+			mv_PATH_INFO = jstr_create("PATH_INFO=");
+			jstr_concat(mv_PATH_INFO, jstr_cstr(path_info));
+			env_list[9] = jstr_cstr(mv_PATH_INFO);
+		}
+		
+		env_list[10] = NULL;
 		
 		/* send http response header here */
         h_res->last_modified = time(NULL);
@@ -134,17 +162,20 @@ call_cgi(struct cgi_request *cgi_req,
 		 * explicitly set the current working directory to
 		 * make sure exec will get correct PWD
 		 */
-		cwd = get_parent(cgi_req->path);
+		cwd = get_parent(abs_path);
 		if (chdir(jstr_cstr(cwd)) == -1)
 			perror("chdir error: ");
 		
-		if (execle(jstr_cstr(cgi_req->path), 
-		    jstr_cstr(cgi_req->path), NULL,
+		if (execle(jstr_cstr(abs_path), 
+		    jstr_cstr(abs_path), NULL,
 			env_list) == -1)
 			perror("exec error: ");
 		
 		_exit(EXIT_SUCCESS);
 	}
+	
+	jstr_free(abs_path);
+	jstr_free(path_info);
 
 	return OK;
 }
@@ -166,6 +197,40 @@ is_cgi_call(JSTRING *url)
 		return FALSE;
 	
 	return TRUE;
+}
+
+/*
+ * This function separate the CGI program path and PATH_INFO
+ * used by that program. If the uri doesn't include a PATH_INFO
+ * the path_info variable will be set "".
+ */
+static int
+separate_pathinfo(JSTRING *uri, JSTRING **abs_path, JSTRING **path_info)
+{
+	size_t index;
+	char *ext, *occur;
+	
+	ext = ".cgi";
+	
+	index = 0;
+	for (;;) {
+		occur = strstr(jstr_cstr(uri) + index, ext);
+		if (occur == NULL)
+			return Not_Found;
+		index = occur - jstr_cstr(uri) + 4;
+		if (index == jstr_length(uri) || jstr_charat(uri, index) == '/')
+			break;
+	}
+	
+	if (index == jstr_length(uri)) {
+		*abs_path = jstr_create(jstr_cstr(uri));
+		*path_info = jstr_create("");
+	} else {
+		*abs_path = jstr_substr(uri, 0, index);
+		*path_info = jstr_substr(uri, index, jstr_length(uri) - index);
+	}
+
+	return 0;
 }
 
 static BOOL

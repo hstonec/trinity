@@ -10,7 +10,7 @@ struct cgi_request {
 	char *server_ip;
 	char *server_port;
 	JSTRING *cgi_dir;
-	JSTRING *path;
+	JSTRING *uri;
 	JSTRING *query;
 };
 
