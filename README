@@ -12,3 +12,18 @@ shuang14 can write.
 xzhai2 can write.
 add dev branch.
 qwang29 can write
+
+
+- http_response
+  
+  For http_response part, we use a structure to store the intersect
+  data and function interfaces. net.c will pack content and fill in
+  the http_response, such as last_modified, file_path, http_status,
+  content_length and body_flag. After filling the structure, net.c
+  will call response function to go into the http_response.
+
+  http_response.c aims to generate a string buffer, which can be
+  looked as the response header. First of all, due to the status
+  code to determin which header fields should be covered. And
+  then go thru different routin to generate it. Finally, copy
+  back buffer and change size, which is net.c given to response.

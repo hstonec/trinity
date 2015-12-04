@@ -15,8 +15,7 @@ char* get_content_type(char* file_path);
 
 /* This function processes http response header fields.
  * This function will process http_response structure from net.c
- * and generate string buffer as a header, This function will
- * return 0.
+ * and generate string buffer, return back to net.c as a header.
  */
 int
 response(struct http_response *response_info, char *resp_buf, size_t capacity, size_t *size)
@@ -34,7 +33,7 @@ response(struct http_response *response_info, char *resp_buf, size_t capacity, s
 
 	if (response_info->http_status == Not_Modified ||
 		response_info->http_status == No_Content) {
-		/* 304 header, without content type and length */
+		/* 304 and 204 header, without content type and length */
 		sprintf(buf,
 			"%s %d %s\r\n"
 			"Date: %s\r\n"
