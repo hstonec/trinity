@@ -14,6 +14,41 @@ add dev branch.
 qwang29 can write
 
 
+- http_request
+
+  HTTP request message is processed as two parts. One is the request
+  headers. Another part is the entity-body. Because the entity-body 
+  is only the message body sent by client, in our program, we split 
+  http request message into two parts before processing.
+
+  In http_request.c file, there are two functions provided to process
+  http request headers -- request(3) and clean_request(1). When the
+  socket receives the message and splits the message into http request
+  headers and message body, it will call request(3) to get information
+  from http request headers. This function will fill a structure to
+  explain the http request. And the following program can get http
+  request information from this structure. (SEE http.h)
+
+  In processing http request header part, the request(3) function will
+  check the format problems of each request header. If there is a
+  header field or header value not following the rfc1945 syntax,
+  request(3) will return bad request error. 
+
+  When processing request-line, the program will get the request-URI
+  and decode it. Then save the decoded URI into http_request
+  structure. 
+  
+  When processing request-headers, if the header field is not
+  If-Modified-Since, the program will ignore it because those header
+  fields are not required in this program. 
+
+  This server can process three different type of data format in the
+  request header, but  there is a problem in rfc850 format. Rfc850
+  date format uses two digits to represent years. There is no
+  explanation of how to process years after 2000. So in our server, we
+  define that if the year in rfc850 format is larger than 50, it
+  represents 19XX. If the year is less than 50, it represents 20XX.
+
 - http_response
   
   For http_response part, we use a structure to store the intersect
@@ -24,6 +59,6 @@ qwang29 can write
 
   http_response.c aims to generate a string buffer, which can be
   looked as the response header. First of all, due to the status
-  code to determin which header fields should be covered. And
-  then go thru different routin to generate it. Finally, copy
+  code to determine which header fields should be covered. And
+  then go thru different routine to generate it. Finally, copy
   back buffer and change size, which is net.c given to response.
