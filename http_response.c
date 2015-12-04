@@ -32,7 +32,8 @@ response(struct http_response *response_info, char *resp_buf, size_t capacity, s
 	strftime(timestr, sizeof(timestr), rfc1123_DATE_STR, gmtime(&present));
 	strftime(lastmodstr, sizeof(lastmodstr), rfc1123_DATE_STR, gmtime(&response_info->last_modified));
 
-	if (response_info->http_status == Not_Modified) {
+	if (response_info->http_status == Not_Modified ||
+		response_info->http_status == No_Content) {
 		/* 304 header, without content type and length */
 		sprintf(buf,
 			"%s %d %s\r\n"
