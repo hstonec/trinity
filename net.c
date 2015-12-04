@@ -276,15 +276,16 @@ do_http(struct swsopt *so, int cfd,
 		cgi_req.server_ip = server_ip;
 		cgi_req.server_port = server_port;
 		cgi_req.client_ip = client_ip;
-		cgi_req.path = url;
+		cgi_req.uri = url;
 		cgi_req.query = query;
 		
 		cgi_result = call_cgi(&cgi_req, &h_res);
+		if (cgi_result != OK)
+			send_err_and_exit(cfd, cgi_result);
 		
         logger.state_code = cgi_result;
         /* can't get Content-Length from cgi call */
         logger.content_length = 0;
-        
         (void)logging(&logger);
 	} else {
 		/* 
