@@ -1,3 +1,7 @@
+/*
+ * This program contains the code to deal with
+ * cgi request.
+ */
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -26,6 +30,12 @@ static pid_t cgi_pid;
 static void convert_request_method(int , char *);
 static void write_socket(int, char *, size_t);
 
+/*
+ * Ths main function to be used to handle CGI
+ * request. It checks the argument of CGI request
+ * and invoke the specific CGI program and send
+ * part of the http response header. 
+ */
 int
 call_cgi(struct cgi_request *cgi_req,
          struct http_response *h_res)
@@ -189,6 +199,11 @@ is_cgi_call(JSTRING *url)
 	return TRUE;
 }
 
+/*
+ * This function separate the CGI program path and PATH_INFO
+ * used by that program. If the uri doesn't include a PATH_INFO
+ * the path_info variable will be set "".
+ */
 static int
 separate_pathinfo(JSTRING *uri, JSTRING **abs_path, JSTRING **path_info)
 {

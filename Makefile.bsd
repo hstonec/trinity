@@ -1,6 +1,6 @@
 CC=cc
 PROG=sws
-CFLAGS=-DNETBSD -Wall -g
+CFLAGS=-D_NETBSD_ -Wall
 
 all: ${PROG}
 

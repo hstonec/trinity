@@ -1,6 +1,6 @@
 CC=cc
 PROG=sws
-CFLAGS=-DLINUX -Wall -g
+CFLAGS=-D_LINUX_ -Wall
 
 all: ${PROG}
 
