@@ -228,8 +228,11 @@ write_socket(int sfd, char *buf, size_t len)
 		
 	count = 0;
 	while ((count = write(sfd, buf, len)) > 0) {
-		len -= count;
-		buf += count;
+		if (count < len) {
+			len -= count;
+			buf += count;
+		} else
+			break;
 	}
 	if (count == -1)
 		perror("write socket error: ");

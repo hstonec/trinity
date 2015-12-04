@@ -836,11 +836,14 @@ write_socket(int sfd, char *buf, size_t len)
 		
 	count = 0;
 	while ((count = write(sfd, buf, len)) > 0) {
-		len -= count;
-		buf += count;
+		if (count < len) {
+			len -= count;
+			buf += count;
+		} else
+			break;
 	}
 	if (count == -1)
-		send_err_and_exit(sfd, Internal_Server_Error);
+		perror("write socket error: ");
 }
 
 static int 
