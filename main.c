@@ -1,10 +1,10 @@
 /*
- * This program implements a rudimentary server 
- * which will read one line of text from any 
- * connecting client and print out on stdout that 
- * line prefixed with the remote client's IP address.
+ * This program implements a simple web server.
+ * It binds to a given port on the given address 
+ * and waits for incoming HTTP/1.0 requests. It 
+ * serves content from the given directory.
  */
-#ifdef LINUX
+#ifdef _LINUX_
 	#include <bsd/stdlib.h>
 #endif
 

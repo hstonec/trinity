@@ -1,20 +1,61 @@
 CS631 Advanced Programming in the UNIX Environment Final Project
 ================================================================
 
-This repository will contain the sources for the final project of
-the group 'trinity'.
+Group Information
+  
+  Group Name: Trinity
+  
+  Group Member:
+    Name             Stevens ID
+	Qiushi Wang      qwang29
+	Xiaoyu Zhai      xzhai2
+	Shicong Huang    shuang14
+	
+Compilation Method
+  
+  In linux lab, use the command below to compile the poject:
+    make -f Makefile.lnx
+  
+  In AWS Netbsd, use the command below to compile the project:
+    make -f Makefile.bsd
 
-Please add your sources, Makefile, tests, etc. here.
+Implementation Notes
+  
+- Program Structure
+  
+  The program starts from main.c which contains the main function.
+  The main function parses all command-line options to initialize
+  a swsopt struct defined in sws.h. After a simple verification,
+  it invokes function start_server() in net.c to start the http 
+  server.
+  
+  According to the options passed to start_server(), the http server
+  runs in different modes. After a request comes in, function request()
+  in http_request.c will be invoked to parse the http request header. 
+  
+  If -c is set and the request uri denotes a cgi program, the server 
+  invokes function call_cgi() in cgi.c to deal with the request. If 
+  the request uri represents a directory in the host computer and there
+  doesn't exist a index.html(case-sensitive) in that directory, the 
+  server calls send_dirindex() to return a directory indexing html 
+  to the client; or, the server calls send_file() to try to send a 
+  regular file to the client.
+  
+  After the server deals with the request, either a normal http response
+  or error response will be sent. The function send_err_and_exit() is
+  used to send a 4XX or 5XX http response. To generate the http response
+  header, the function response() in http_response.c is called.
 
-Please update this README with whatever additional information you
-may wish to include in your final submission.
-shuang14 can write.
-xzhai2 can write.
-add dev branch.
-qwang29 can write
+  There are two libraries created to help implement this project, 
+  jstring.c and arraylist.c. jstring.c is a C language implementation of
+  Java String and StringBuilder. arraylist.c is a liner container which
+  is based on an array.
+  
+- HTTP Request
 
 
-- http_response
+
+- HTTP Response
   
   For http_response part, we use a structure to store the intersect
   data and function interfaces. net.c will pack content and fill in
@@ -27,3 +68,8 @@ qwang29 can write
   code to determin which header fields should be covered. And
   then go thru different routin to generate it. Finally, copy
   back buffer and change size, which is net.c given to response.
+  
+- CGI
+  
+  The CGI program must be put in the directory with -c option and 
+  must have a filename extension ".cgi"(case-sensitive). 

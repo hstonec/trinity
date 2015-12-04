@@ -1,6 +1,6 @@
 /*
- * This program contains all network related 
- * functions.
+ * This program contains all network related functions
+ * for the web server.
  */
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -9,7 +9,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-#ifdef LINUX
+#ifdef _LINUX_
 	#include <bsd/stdlib.h>
 #endif
 
@@ -64,11 +64,6 @@ static struct http_response h_res;
  * This function creates a server socket and binds
  * it to the address and port provided in struct
  * swsopt passed by the argument.
- *
- * The server serves one client each time. The server
- * reads one line of text from the client and prints
- * out to stdout, then close this connection and waits
- * for the next client.
  */
 void
 start_server(struct swsopt *so)
@@ -160,8 +155,8 @@ start_server(struct swsopt *so)
 			perror_exit("daemonize error: ");
 		
 	/*
-	 * This infinite loop makes server accept next connection
-	 * after closing the last socket.
+	 * This infinite loop makes server accept next request
+	 * after it dealt with the last one.
 	 */
 	for (;;) {
 		if ((cfd = accept(sfd, client, &client_len)) == -1)
@@ -222,6 +217,10 @@ start_server(struct swsopt *so)
 
 }
 
+/*
+ * This function implements the main logic of handling
+ * http request and response.
+ */
 static void
 do_http(struct swsopt *so, int cfd, 
 		struct sockaddr *client,
@@ -321,7 +320,9 @@ do_http(struct swsopt *so, int cfd,
     clean_logging(&logger);
 }
 
-
+/*
+ * This function reads the http request header to the buffer.
+ */
 static void
 read_http_header(int cfd, struct http_request *phr, 
                  struct set_logging *logger)
