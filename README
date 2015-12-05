@@ -6,10 +6,11 @@ Group Information
   Group Name: Trinity
   
   Group Member:
-    Name             Stevens ID
-	Qiushi Wang      qwang29
-	Xiaoyu Zhai      xzhai2
-	Shicong Huang    shuang14
+  Name             Stevens ID
+  
+  Qiushi Wang      qwang29
+  Xiaoyu Zhai      xzhai2
+  Shicong Huang    shuang14
 	
 Compilation Method
   
@@ -33,13 +34,18 @@ Implementation Notes
   runs in different modes. After a request comes in, function request()
   in http_request.c will be invoked to parse the http request header. 
   
-  If -c is set and the request uri denotes a cgi program, the server 
-  invokes function call_cgi() in cgi.c to deal with the request. If 
-  the request uri represents a directory in the host computer and there
-  doesn't exist a index.html(case-sensitive) in that directory, the 
-  server calls send_dirindex() to return a directory indexing html 
-  to the client; or, the server calls send_file() to try to send a 
-  regular file to the client.
+  To deal with request URI, if -c is set and the request uri denotes
+  a cgi program, the server invokes function call_cgi() in cgi.c to 
+  deal with the request. If the request uri represents a directory 
+  in the host computer and there doesn't exist a 
+  index.html(case-sensitive) in that directory, the server calls 
+  send_dirindex() to return a directory indexing html to the client; 
+  or, the server calls send_file() to try to send a regular file to 
+  the client.
+  
+  Once the server receives the integrated http request and any error
+  happens, it calls send_err_and_exit() to send a error response
+  to client and terminate the current process.
   
   After the server deals with the request, either a normal http response
   or error response will be sent. The function send_err_and_exit() is
@@ -122,3 +128,14 @@ Implementation Notes
   
   The CGI program must be put in the directory with -c option and 
   must have a filename extension ".cgi"(case-sensitive). 
+  
+  The CGI uri must start with "/cgi-bin"(case-sensitive) and any 
+  characters after first ".cgi" and before "?" is treated as PATH_INFO
+  meta variable for CGI request.
+  
+  If IP address is set with the server start, the SERVER_NAME meta 
+  variable is set to that IP address; or, uname(2) is used to provide
+  node name as SERVER_NAME.
+  
+  If CGI program runs more than 60 seconds, it will be killed by the
+  server. The time is defined by MAX_CGI_EXEC_TIME in cgi.h.
