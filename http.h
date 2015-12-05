@@ -58,11 +58,11 @@ struct http_request
  */
 struct http_response
 {
-    time_t last_modified;
-    char *file_path;
-    size_t content_length;
-    int http_status;
-    int body_flag;
+        time_t last_modified;
+        char *file_path;
+        size_t content_length;
+        int http_status;
+        int body_flag;
 };
 /*
  * set_logging
@@ -92,10 +92,14 @@ int request(char *buf, struct http_request *request_info,
 /* release the memory of http_requst */ 
 void clean_request(struct http_request *request_info);
 
-/* deal with general http response */
+/* 
+ * response(4) processes http response status line and response
+ * headers, in normal it will return 0. This function will generate
+ * http response header buffer, according to http_response structure.
+ */
 int response(struct http_response *response_info, char *resp_buf, 
 		size_t capacity, size_t *size);
-/* deal with cgi http response */
+/* deal with cgi response, the idea of this is same as response(4) */
 int cgi_response(struct http_response *response_info, char *resp_buf, 
 		size_t capacity, size_t *size);
 

@@ -117,7 +117,8 @@ cgi_response(struct http_response *response_info, char *resp_buf, size_t capacit
 }
 
 char*
-status_phrase(int code) {
+status_phrase(int code)
+{
 	/* get the status phrase thru status code */
 	switch(code) {
 		case 200:
@@ -171,12 +172,13 @@ status_phrase(int code) {
 	}
 }
 
+/*
+ * simple routine to check the extension of file path
+ * and get the content type
+ */
 char*
-get_content_type(char* file_path) {
-	/*
-	 * simple routine to check the extension of file path
-	 * and get the content type
-	 */
+get_content_type(char* file_path)
+{
 	char* ext = strrchr(file_path, '.');
 	if (!ext) {
 		return "text/html";

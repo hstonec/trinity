@@ -88,17 +88,35 @@ Implementation Notes
 
 - HTTP Response
 
-  For http_response part, we use a structure to store the intersect
-  data and function interfaces. net.c will pack content and fill in
-  the http_response, such as last_modified, file_path, http_status,
-  content_length and body_flag. After filling the structure, net.c
-  will call response function to go into the http_response.
+  In our program, we split up response into two parts, one is header
+  part, and the other is entity part. Because of the design of our 
+  logic, the entity part will be processed in net.c (main routin),
+  and net.c will fill up the http_response structure to pass the intersect
+  data. You can see the http_response structure in http.h.
+
+  For http_response part, we use the http_response structure to store
+  the intersect data and function interfaces. Main routin will pack
+  content and fill in the http_response, such as last_modified,
+  file_path, http_status, content_length and body_flag. After filling
+  the structure, net.c will call response(4) function to go into the
+  http_response.
 
   http_response.c aims to generate a string buffer, which can be
   looked as the response header. First of all, due to the status
   code to determine which header fields should be covered. And
   then go thru different routine to generate it. Finally, copy
   back buffer and change size, which is net.c given to response.
+
+  In details, status line is the first tier of response header
+  generation. According to the different status code, header will take
+  the different header fields. For example, response header will not
+  take content type and length in status 304. And then, if body_flag
+  is 1, it means we should take an entity body with the header,
+  so we will add a content length (entity body will add in net.c).
+
+  For CGI response, we have a cgi_response(4) to process, and the main
+  idea of it is same as response(4). And the body of entity will process
+  in net.c.
 
 - CGI
   
