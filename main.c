@@ -191,8 +191,14 @@ is_dir(char *path)
 static JSTRING *
 convert(char *cwd, char *dir) 
 {
+	char *temp;
 	JSTRING *pcwd, *pdir;
-	
+	JSTRING *trimed;
+	/* 
+	 * Since http uri must start with a 
+	 * forward slash, if the dir is '/'
+	 * it could be removed.
+	 */
 	if (strcmp(dir, "/") == 0)
 		return jstr_create("");
 	
@@ -208,9 +214,40 @@ convert(char *cwd, char *dir)
 		jstr_append(pcwd, '/');
 	jstr_concat(pcwd, jstr_cstr(pdir));
 	
-	jstr_free(pdir);
+	if (chdir(jstr_cstr(pcwd)) == -1) {
+		(void)fprintf(stderr, 
+			"%s: operate '%s' failed: %s\n", 
+			getprogname(),
+			jstr_cstr(pcwd),
+			strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 	
-	return pcwd;
+	temp = getcwd(NULL, 0);
+	if (temp == NULL) {
+		(void)fprintf(stderr, 
+			"%s: getcwd error: %s\n", 
+			getprogname(),
+			strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	
+	trimed = jstr_create(temp);
+	
+	free(temp);
+	
+	if (chdir(cwd) == -1) {
+		(void)fprintf(stderr, 
+			"%s: operate '%s' failed: %s\n", 
+			getprogname(),
+			cwd,
+			strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+	
+	jstr_free(pcwd);
+	jstr_free(pdir);
+	return trimed;
 }
 
 static void

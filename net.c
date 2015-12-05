@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <sys/utsname.h>
 
 #ifdef _LINUX_
 	#include <bsd/stdlib.h>
@@ -236,6 +237,7 @@ do_http(struct swsopt *so, int cfd,
     extern struct http_response h_res;
     extern struct set_logging logger;
 	JSTRING *url, *query;
+	struct utsname uname_buf;
 	
 	get_ip(server_ip, server);
 	get_ip(client_ip, client);
@@ -272,7 +274,19 @@ do_http(struct swsopt *so, int cfd,
 		cgi_req.cfd = cfd;
 		cgi_req.request_method = hr.method_type;
 		cgi_req.cgi_dir = so->cgi_dir;
-		cgi_req.server_ip = server_ip;
+		
+		/* 
+		 * If -i is set, use the ip address as server
+		 * name; or, use nodename as server name
+		 */
+		if (so->opt['i'] == TRUE)
+			cgi_req.server_name = server_ip;
+		else {
+			if (uname(&uname_buf) == -1)
+				send_err_and_exit(cfd, Internal_Server_Error);
+			cgi_req.server_name = uname_buf.nodename;
+		}
+		
 		cgi_req.server_port = server_port;
 		cgi_req.client_ip = client_ip;
 		cgi_req.uri = url;
