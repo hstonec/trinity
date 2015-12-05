@@ -401,6 +401,8 @@ send_file(int cfd, struct http_request *hr, JSTRING *path)
 	if (stat(jstr_cstr(path), &stat_buf) == -1) {
 		if (errno == ENOENT)
 			send_err_and_exit(cfd, Not_Found);
+		else if (errno == EACCES)
+			send_err_and_exit(cfd, Forbidden);
 		else
 			send_err_and_exit(cfd, Internal_Server_Error);
 	}
@@ -436,8 +438,15 @@ send_file(int cfd, struct http_request *hr, JSTRING *path)
 		return;
 	}
 	
-	if ((fd = open(jstr_cstr(path), O_RDONLY)) == -1)
-		send_err_and_exit(cfd, Internal_Server_Error);
+	if ((fd = open(jstr_cstr(path), O_RDONLY)) == -1) {
+		if (errno == ENOENT)
+			send_err_and_exit(cfd, Not_Found);
+		else if (errno == EACCES)
+			send_err_and_exit(cfd, Forbidden);
+		else
+			send_err_and_exit(cfd, Internal_Server_Error);
+	}
+		
 	
 	/* prepare response head data */
 	h_res.last_modified = stat_buf.st_mtime;
@@ -518,9 +527,15 @@ send_dirindex(int cfd, JSTRING *path, char *uri)
 	 */
 	bodylen = 0;
 	
-	if ((dp = opendir(jstr_cstr(path))) == NULL )
-		send_err_and_exit(cfd, Internal_Server_Error);
-	
+	if ((dp = opendir(jstr_cstr(path))) == NULL ) {
+		if (errno == ENOENT)
+			send_err_and_exit(cfd, Not_Found);
+		else if (errno == EACCES)
+			send_err_and_exit(cfd, Forbidden);
+		else
+			send_err_and_exit(cfd, Internal_Server_Error);
+	}
+		
 	while ((dirp = readdir(dp)) != NULL ) {
 		/*  Files starting with a '.' are ignored. */
 		if (dirp->d_name[0] == '.')

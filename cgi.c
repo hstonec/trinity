@@ -79,9 +79,11 @@ call_cgi(struct cgi_request *cgi_req,
 		return Not_Found;
 	
 	/* check if file is executable */
-	if (access(jstr_cstr(abs_path), X_OK)) {
+	if (access(jstr_cstr(abs_path), X_OK) == -1) {
 		if (errno == ENOENT)
 			return Not_Found;
+		else if (errno == EACCES)
+			return Forbidden;
 		else
 			return Internal_Server_Error;
 	}
