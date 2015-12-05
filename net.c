@@ -45,7 +45,7 @@ static void read_http_header(int, struct http_request *,
                              struct set_logging *);
 static void get_ip(char *, struct sockaddr *);
 static void send_file(int, struct http_request *, JSTRING *);
-static void send_dirindex(int, JSTRING *, char *uri);
+static void send_dirindex(int, int, JSTRING *, char *uri);
 static void send_err_and_exit(int, int);
 
 static int trim_uri(JSTRING *);
@@ -322,7 +322,7 @@ do_http(struct swsopt *so, int cfd,
 			jstr_concat(url, "index.html");
 			send_file(cfd, &hr, url);
 		} else if (is_dir(jstr_cstr(url)) == TRUE)
-			send_dirindex(cfd, url, hr.request_URL);
+			send_dirindex(cfd, hr.method_type, url, hr.request_URL);
 		else
 			send_file(cfd, &hr, url);
 	}
@@ -488,7 +488,7 @@ send_file(int cfd, struct http_request *hr, JSTRING *path)
 }
 
 static void
-send_dirindex(int cfd, JSTRING *path, char *uri)
+send_dirindex(int cfd, int method_type, JSTRING *path, char *uri)
 {
 	extern struct http_response h_res;
     extern struct set_logging logger;
@@ -593,31 +593,41 @@ send_dirindex(int cfd, JSTRING *path, char *uri)
     h_res.last_modified = time(NULL);
     h_res.content_length = bodylen;
     h_res.http_status = OK;
-    h_res.body_flag = 1;
     
-    size = 0;
-    (void)response(&h_res, resp_buf, 
-                   HTTP_RESPONSE_MAX_LENGTH, &size);
-    write_socket(cfd, resp_buf, size);
+	if (method_type == HEAD) {
+		bodylen = 0;
+		h_res.body_flag = 0;
+	} else if (method_type == GET)
+		h_res.body_flag = 1;
+	else
+		send_err_and_exit(cfd, Not_Implemented);
 	
-    /* send message body */
-	write_socket(cfd, tag_before_title, tag_before_title_len);
-	write_socket(cfd, uri, uri_len);
-	write_socket(cfd, tag_before_h1, tag_before_h1_len);
-	write_socket(cfd, uri, uri_len);
-	write_socket(cfd, tag_before_li, tag_before_li_len);
-	for (i = 0; i < arrlist_size(list); i++) {
-		filename = (JSTRING *)arrlist_get(list, i);
-		
-		write_socket(cfd, tag_left_li, tag_left_li_len);
-		write_socket(cfd, jstr_cstr(filename), jstr_length(filename));
-		write_socket(cfd, tag_middle_li, tag_middle_li_len);
-		write_socket(cfd, jstr_cstr(filename), jstr_length(filename));
-		write_socket(cfd, tag_right_li, tag_right_li_len);
-		
-		jstr_free(filename);
+	size = 0;
+	(void)response(&h_res, resp_buf, 
+					   HTTP_RESPONSE_MAX_LENGTH, &size);
+	write_socket(cfd, resp_buf, size);
+	
+	/* only GET request need send message body */
+	if (method_type == GET) {
+		/* send message body */
+		write_socket(cfd, tag_before_title, tag_before_title_len);
+		write_socket(cfd, uri, uri_len);
+		write_socket(cfd, tag_before_h1, tag_before_h1_len);
+		write_socket(cfd, uri, uri_len);
+		write_socket(cfd, tag_before_li, tag_before_li_len);
+		for (i = 0; i < arrlist_size(list); i++) {
+			filename = (JSTRING *)arrlist_get(list, i);
+			
+			write_socket(cfd, tag_left_li, tag_left_li_len);
+			write_socket(cfd, jstr_cstr(filename), jstr_length(filename));
+			write_socket(cfd, tag_middle_li, tag_middle_li_len);
+			write_socket(cfd, jstr_cstr(filename), jstr_length(filename));
+			write_socket(cfd, tag_right_li, tag_right_li_len);
+			
+			jstr_free(filename);
+		}
+		write_socket(cfd, tag_after_li, tag_after_li_len);
 	}
-	write_socket(cfd, tag_after_li, tag_after_li_len);
 	
 	arrlist_free(list);
     
