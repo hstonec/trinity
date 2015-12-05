@@ -7,7 +7,7 @@ struct cgi_request {
 	int cfd;
 	int request_method;
 	char *client_ip;
-	char *server_ip;
+	char *server_name;
 	char *server_port;
 	JSTRING *cgi_dir;
 	JSTRING *uri;

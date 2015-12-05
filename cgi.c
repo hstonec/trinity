@@ -119,7 +119,7 @@ call_cgi(struct cgi_request *cgi_req,
 		env_list[4] = jstr_cstr(mv_SCRIPT_NAME);
 		
 		mv_SERVER_NAME = jstr_create("SERVER_NAME=");
-		jstr_concat(mv_SERVER_NAME, cgi_req->server_ip);
+		jstr_concat(mv_SERVER_NAME, cgi_req->server_name);
 		env_list[5] = jstr_cstr(mv_SERVER_NAME);
 		
 		mv_SERVER_PORT = jstr_create("SERVER_PORT=");
