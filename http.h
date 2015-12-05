@@ -17,18 +17,11 @@
 #define Bad_Gateway				502
 #define Service_Unavailable		503
 
-#define METHOD
-#define GET				001
-#define HEAD			002
-#define POST			004
-#define METHOD_MASK		007
+#define GET				1
+#define HEAD			2
+#define POST			3
 
-#define DATETYPE
-#define rfc1123_DATE		1
-#define rfc850_DATE			2
-#define asctime_DATE		3
-
-#define HTTP_REQUEST_MAX_LENGTH 8192
+#define HTTP_REQUEST_MAX_LENGTH	 8192
 #define HTTP_RESPONSE_MAX_LENGTH 8192
 
 #define HTTP_IMPL_VERSION 1.0
