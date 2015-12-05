@@ -53,11 +53,8 @@ request(char *buf, struct http_request *request_info,
 	request_info->if_modified_flag = 0;
 	request_info->method_type = 0;
 	request_info->request_URL = NULL;
-	logging_info->client_ip = NULL;
-	logging_info->content_length = 0;
+
 	logging_info->first_line = NULL;
-	logging_info->logging_flag = 0;
-	logging_info->state_code = 0;
 	logging_info->receive_time = 0;
 	/* process the first line of http request */
 	method = split_str(NULL, &request_head);
